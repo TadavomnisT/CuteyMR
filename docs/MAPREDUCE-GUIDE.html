@@ -1,0 +1,1294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CuteyMR — MapReduce WordCount in Pure Go · The Illustrated Guide</title>
+<meta name="description" content="A friendly, fully illustrated guide to distributed MapReduce word counting and the CuteyMR system: architecture, code walkthrough, terminal dashboards, and how to run it on one or many machines.">
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2129; --line:#30363d;
+    --text:#e6edf3; --dim:#9aa4b2; --faint:#6e7681;
+    --purple:#c084fc; --green:#57d99a; --pink:#e879f9; --amber:#f3b35b; --red:#ff7b72;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--text);font:16px/1.75 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1020px;margin:0 auto;padding:0 24px}
+  a{color:var(--purple);text-decoration:none}
+  a:hover{text-decoration:underline}
+  h1,h2,h3,h4{line-height:1.3;font-weight:700;letter-spacing:-.01em}
+  h2{font-size:30px;margin:64px 0 8px;padding-top:16px;border-top:1px solid var(--line)}
+  h2 .chip{display:inline-flex;align-items:center;justify-content:center;min-width:44px;height:32px;margin-right:12px;background:linear-gradient(135deg,rgba(57,208,195,.18),rgba(87,217,154,.12));border:1px solid rgba(57,208,195,.35);color:var(--purple);border-radius:8px;font-family:var(--mono);font-size:15px;vertical-align:middle}
+  h3{font-size:21px;margin:36px 0 6px;color:#dbe4ee}
+  p{margin:14px 0}
+  .lead{font-size:18.5px;color:#c8d2dd}
+  code{font-family:var(--mono);font-size:.86em;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:2px 6px;color:#a5e6d3;white-space:nowrap}
+  pre{font-family:var(--mono);font-size:13px;line-height:1.55;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;overflow-x:auto;tab-size:4}
+  pre code{background:none;border:none;padding:0;color:#c9d6e3;white-space:pre}
+  table{border-collapse:collapse;width:100%;margin:18px 0;font-size:14.5px}
+  th{font-family:var(--mono);font-size:12.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim);text-align:left}
+  th,td{border:1px solid var(--line);padding:9px 12px;vertical-align:top}
+  tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+  figure{margin:26px 0}
+  figure svg{max-width:100%;height:auto;display:block;background:var(--panel);border:1px solid var(--line);border-radius:12px}
+  figcaption{font-size:13.5px;color:var(--dim);margin-top:10px;text-align:center}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:860px){.cols{grid-template-columns:1fr}}
+  .callout{border:1px solid var(--line);border-left:4px solid var(--purple);background:linear-gradient(180deg,rgba(57,208,195,.06),rgba(57,208,195,.02));border-radius:10px;padding:14px 18px;margin:20px 0}
+  .callout.warn{border-left-color:var(--amber);background:linear-gradient(180deg,rgba(243,179,91,.07),rgba(243,179,91,.02))}
+  .callout.story{border-left-color:var(--pink);background:linear-gradient(180deg,rgba(232,121,249,.06),rgba(232,121,249,.02))}
+  .callout .t{font-family:var(--mono);font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--purple);margin-bottom:6px}
+  .callout.warn .t{color:var(--amber)}
+  .callout.story .t{color:var(--pink)}
+  .toc{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;margin:24px 0}
+  .toc a{display:block;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 16px;color:var(--text)}
+  .toc a:hover{border-color:var(--purple);text-decoration:none;transform:translateY(-1px)}
+  .toc .n{font-family:var(--mono);color:var(--purple);margin-right:8px}
+  .term-frame{background:#080c10;border:1px solid #1f2630;border-radius:12px;padding:16px 18px;overflow-x:auto}
+  .term-frame pre{background:none;border:none;padding:0;margin:0;font-size:12.3px;line-height:1.42;color:#b9c7d4}
+  .term-bar{display:flex;gap:7px;align-items:center;padding:10px 14px;background:#10151b;border:1px solid #1f2630;border-bottom:none;border-radius:12px 12px 0 0}
+  .term-bar .dot{width:11px;height:11px;border-radius:50%}
+  .term-bar .t{margin-left:8px;font-family:var(--mono);font-size:12px;color:var(--faint)}
+  .cover{margin:40px 0 8px}
+  .cover img{width:100%;border-radius:16px;border:1px solid var(--line);display:block}
+  .cover .kicker{font-family:var(--mono);color:var(--purple);letter-spacing:.14em;text-transform:uppercase;font-size:13px;margin-bottom:12px}
+  .cover h1{font-size:clamp(34px,6vw,58px);margin:6px 0 14px;background:linear-gradient(100deg,#e6edf3 30%,#c084fc 75%,#e879f9);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .cover .sub{font-size:19px;color:#c4cedb;max-width:760px}
+  .meta{display:flex;flex-wrap:wrap;gap:10px;margin:22px 0 6px}
+  .meta span{font-family:var(--mono);font-size:12.5px;border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:5px 13px;color:var(--dim)}
+  footer{border-top:1px solid var(--line);margin-top:80px;padding:34px 0 46px;color:var(--faint);font-size:14px}
+  .filetree{font-family:var(--mono);font-size:13px}
+  .filetree .d{color:var(--purple);font-weight:600}
+  .filetree .c{color:var(--faint)}
+  .tag{font-family:var(--mono);font-size:11.5px;border-radius:6px;padding:2px 8px;border:1px solid var(--line);color:var(--dim)}
+  .tag.go{color:var(--purple);border-color:rgba(57,208,195,.4)}
+  .tag.proto{color:var(--pink);border-color:rgba(232,121,249,.4)}
+  .tag.ui{color:var(--amber);border-color:rgba(243,179,91,.4)}
+  .num{font-family:var(--mono);color:var(--amber)}
+  .kbd{font-family:var(--mono);font-size:.82em;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px;background:var(--panel2)}
+  svg text{font-family:ui-monospace,Menlo,Consolas,monospace}
+  .ans{display:block;white-space:pre;font-family:var(--mono);font-size:12px;line-height:1.4}
+  .ans .g{color:#6ee7a0}.ans .y{color:#f3b35b}.ans .p{color:#e879f9}.ans .d{color:#7d8896}.ans .t{color:#c084fc}.ans .w{color:#e6edf3}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- ======================= COVER ======================= -->
+<div class="cover" id="top">
+  <div class="kicker">the illustrated guide · pure go · zero dependencies</div>
+  <h1>CuteyMR — MapReduce WordCount, Explained From Zero</h1>
+  <p class="sub">How one master and a swarm of workers count every word in a pile of
+  documents — told with pictures, and real code you can run tonight.</p>
+  <div class="meta">
+    <span>go 1.21+</span><span>stdlib only</span><span>HTTP + JSON</span>
+    <span>peer-to-peer shuffle</span><span>terminal dashboards</span><span>fault tolerant</span>
+  </div>
+</div>
+
+<figure class="cover">
+  <img width="100%" src="images/hero-mapreduce.png" alt="Illustration of femboy workers in purple outfits on an assembly line: one cuts a book into pages, others write word cards that travel on a conveyor into sorting bins">
+  <figcaption>CuteyMR in one picture: cut the books up (split), let every person count words (map), send the word cards to the right bin (shuffle), and add each bin up (reduce).</figcaption>
+</figure>
+
+<!-- ======================= TOC ======================= -->
+<h2><span class="chip">§</span>What’s inside</h2>
+<div class="toc">
+  <a href="#parable"><span class="n">1</span>Counting words with friends (a story)</a>
+  <a href="#whatis"><span class="n">2</span>What MapReduce actually is</a>
+  <a href="#worked"><span class="n">3</span>WordCount, step by step</a>
+  <a href="#arch"><span class="n">4</span>Inside CuteyMR: the architecture</a>
+  <a href="#protocol"><span class="n">5</span>The wire protocol</a>
+  <a href="#fault"><span class="n">6</span>When workers die</a>
+  <a href="#dashboards"><span class="n">7</span>The terminal dashboards</a>
+  <a href="#code"><span class="n">8</span>A walk through the code</a>
+  <a href="#run"><span class="n">9</span>Compile &amp; run it</a>
+  <a href="#machines"><span class="n">10</span>Running on real machines</a>
+  <a href="#tested"><span class="n">11</span>How it was tested</a>
+  <a href="#glossary"><span class="n">12</span>Glossary &amp; FAQ</a>
+</div>
+
+<!-- ======================= 1. PARABLE ======================= -->
+<h2 id="parable"><span class="chip">1</span>Counting words with friends — a story</h2>
+
+<p class="lead">Before any diagrams or code, imagine this. You manage a small library, and one
+morning the head librarian asks you a deceptively simple question:</p>
+
+<div class="callout story">
+  <div class="t">the librarian’s question</div>
+  “In all <b>10,000 books</b> of this library — which words appear most often, and exactly how
+  many times does each word appear?”
+</div>
+
+<p>You look at the mountain of books and think: <i>reading every book myself would take a year.</i>
+But you have friends — lots of friends — and a big table. So you invent a plan on the spot:</p>
+
+<p><b>Step 1 — Tear the problem into pieces.</b> You don’t hand out whole books; you rip each book
+into <b>page-piles</b> (never tearing a page in half — words must stay whole). One pile per friend
+is too few; you make many small piles so nobody waits with an empty table.</p>
+
+<p><b>Step 2 — Everyone counts locally.</b> Each friend takes a pile and makes a <b>tally sheet</b>:
+every time they see the word “whale”, they add a stroke next to <span class="num">whale</span>.
+“whale, whale, whale…” becomes <span class="num">whale |||</span>. They do NOT try to know the
+library-wide answer — only their pile’s. That is the magic trick: <i>small, independent,
+no-talking-needed work.</i></p>
+
+<p><b>Step 3 — Send tallies to the right person.</b> Now you need the library-wide total. You put
+<b>three baskets</b> on the table, labeled A, B and C. There’s a silly-but-reliable rule for where
+each word goes: you count the letters of the word, and if the count divides evenly by 3 it goes in
+basket A, if it leaves remainder 1 it goes in B, remainder 2 in C. Every friend sorts their tallied
+words into the baskets. Crucially, <i>the same word always lands in the same basket</i> — all
+“whale” tallies end up together, whoever counted them.</p>
+
+<p><b>Step 4 — Basket owners add up.</b> Three more friends each grab one basket and simply
+<b>add</b>: whale from pile 1 was 3, pile 7 was 5, pile 12 was 2 → whale = 10. Because baskets
+never mix words, each adder works alone, in parallel, and can never disagree.</p>
+
+<p><b>Step 5 — You collect the three results.</b> You staple the three basket totals into one
+final report and hand it to the librarian. Done before lunch.</p>
+
+<figure>
+  <svg viewBox="0 0 960 470" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Five-step story diagram: books, torn piles, tally sheets, baskets, final report">
+    <defs>
+      <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0 0L10 5L0 10z" fill="#9aa4b2"/>
+      </marker>
+    </defs>
+    <rect x="0" y="0" width="960" height="470" fill="transparent"/>
+    <!-- step labels -->
+    <g font-size="12" fill="#9aa4b2" font-weight="700">
+      <text x="30" y="46">STEP 1 · SPLIT</text>
+      <text x="218" y="46">STEP 2 · MAP (count locally)</text>
+      <text x="470" y="46">STEP 3 · SHUFFLE (word → basket)</text>
+      <text x="736" y="46">STEP 4 · REDUCE (add each basket)</text>
+    </g>
+    <!-- books -->
+    <g>
+      <rect x="30" y="70" width="54" height="70" rx="4" fill="#233042" stroke="#c084fc"/>
+      <rect x="42" y="82" width="30" height="6" rx="2" fill="#0d1117"/>
+      <rect x="42" y="94" width="30" height="6" rx="2" fill="#0d1117"/>
+      <rect x="42" y="106" width="20" height="6" rx="2" fill="#0d1117"/>
+      <rect x="88" y="84" width="50" height="56" rx="4" fill="#2b2340" stroke="#e879f9"/>
+      <rect x="99" y="96" width="28" height="6" rx="2" fill="#0d1117"/>
+      <rect x="99" y="108" width="28" height="6" rx="2" fill="#0d1117"/>
+      <rect x="92" y="66" width="50" height="56" rx="4" fill="#233042" stroke="#c084fc"/>
+    </g>
+    <text x="60" y="170" font-size="12" fill="#9aa4b2">10,000 books</text>
+    <path d="M150 112 H205" stroke="#9aa4b2" stroke-width="2" marker-end="url(#arr)"/>
+    <!-- piles -->
+    <g>
+      <rect x="218" y="70" width="70" height="52" rx="4" fill="#1c2129" stroke="#57d99a"/>
+      <line x1="218" y1="96" x2="288" y2="96" stroke="#30363d"/>
+      <rect x="232" y="134" width="70" height="52" rx="4" fill="#1c2129" stroke="#57d99a"/>
+      <line x1="232" y1="160" x2="302" y2="160" stroke="#30363d"/>
+      <rect x="246" y="198" width="70" height="52" rx="4" fill="#1c2129" stroke="#57d99a"/>
+      <line x1="246" y1="224" x2="316" y2="224" stroke="#30363d"/>
+    </g>
+    <text x="238" y="272" font-size="12" fill="#9aa4b2">many small piles</text>
+    <path d="M330 96 H395" stroke="#9aa4b2" stroke-width="2" marker-end="url(#arr)"/>
+    <!-- tally sheets -->
+    <g font-size="12" fill="#c9d6e3">
+      <rect x="410" y="70" width="130" height="64" rx="6" fill="#1c2129" stroke="#57d99a"/>
+      <text x="422" y="92">whale&nbsp;&nbsp;|||</text>
+      <text x="422" y="108">sea&nbsp;&nbsp;&nbsp;&nbsp;||</text>
+      <text x="422" y="124">the&nbsp;&nbsp;&nbsp;||||||</text>
+      <rect x="410" y="150" width="130" height="64" rx="6" fill="#1c2129" stroke="#57d99a"/>
+      <text x="422" y="172">whale&nbsp;&nbsp;||</text>
+      <text x="422" y="188">ship&nbsp;&nbsp;&nbsp;|</text>
+      <text x="422" y="204">the&nbsp;&nbsp;&nbsp;||||</text>
+      <rect x="410" y="230" width="130" height="64" rx="6" fill="#1c2129" stroke="#57d99a"/>
+      <text x="422" y="252">whale&nbsp;&nbsp;|||</text>
+      <text x="422" y="268">star&nbsp;&nbsp;&nbsp;|</text>
+      <text x="422" y="284">the&nbsp;&nbsp;&nbsp;|||||</text>
+    </g>
+    <text x="415" y="316" font-size="12" fill="#9aa4b2">each friend: local tallies only</text>
+    <!-- arrows to baskets -->
+    <path d="M548 102 C580 102 590 150 620 158" stroke="#9aa4b2" stroke-width="2" fill="none" marker-end="url(#arr)"/>
+    <path d="M548 182 C580 182 590 185 618 185" stroke="#9aa4b2" stroke-width="2" fill="none" marker-end="url(#arr)"/>
+    <path d="M548 262 C580 262 590 215 620 208" stroke="#9aa4b2" stroke-width="2" fill="none" marker-end="url(#arr)"/>
+    <!-- baskets -->
+    <g>
+      <path d="M622 140 L640 140 L636 230 L626 230 Z" fill="#233042" stroke="#c084fc"/>
+      <path d="M660 140 L678 140 L674 230 L664 230 Z" fill="#2b2340" stroke="#e879f9"/>
+      <path d="M698 140 L716 140 L712 230 L702 230 Z" fill="#33291a" stroke="#f3b35b"/>
+      <text x="631" y="133" font-size="12" fill="#c084fc" text-anchor="middle" font-weight="700">A</text>
+      <text x="669" y="133" font-size="12" fill="#e879f9" text-anchor="middle" font-weight="700">B</text>
+      <text x="707" y="133" font-size="12" fill="#f3b35b" text-anchor="middle" font-weight="700">C</text>
+      <text x="622" y="250" font-size="11" fill="#9aa4b2">whale ||| ||| ||</text>
+      <text x="622" y="266" font-size="11" fill="#9aa4b2">sea || · star |</text>
+      <text x="622" y="282" font-size="11" fill="#9aa4b2">the |||||| |||| |||||</text>
+    </g>
+    <path d="M740 185 H782" stroke="#9aa4b2" stroke-width="2" marker-end="url(#arr)"/>
+    <!-- reduce results -->
+    <g font-size="13" fill="#c9d6e3">
+      <rect x="790" y="70" width="150" height="86" rx="6" fill="#1c2129" stroke="#c084fc"/>
+      <text x="802" y="94" fill="#c084fc" font-weight="700">ADDER A</text>
+      <text x="802" y="114">whale = 8</text>
+      <text x="802" y="132">sea = 2 · star = 1</text>
+      <rect x="790" y="170" width="150" height="86" rx="6" fill="#1c2129" stroke="#e879f9"/>
+      <text x="802" y="194" fill="#e879f9" font-weight="700">ADDER B</text>
+      <text x="802" y="214">the = 15</text>
+      <text x="802" y="232">ship = 1</text>
+      <rect x="790" y="270" width="150" height="86" rx="6" fill="#1c2129" stroke="#f3b35b"/>
+      <text x="802" y="294" fill="#f3b35b" font-weight="700">ADDER C</text>
+      <text x="802" y="314">(empty is fine)</text>
+    </g>
+    <!-- final report -->
+    <path d="M870 356 V392" stroke="#9aa4b2" stroke-width="2" marker-end="url(#arr)"/>
+    <g>
+      <rect x="622" y="396" width="318" height="54" rx="8" fill="rgba(87,217,154,.09)" stroke="#57d99a"/>
+      <text x="640" y="419" font-size="14" fill="#57d99a" font-weight="700">FINAL REPORT — master staples them together</text>
+      <text x="640" y="438" font-size="12.5" fill="#c9d6e3">the 15 · whale 8 · sea 2 · star 1 · ship 1</text>
+    </g>
+    <g>
+      <rect x="30" y="396" width="560" height="54" rx="8" fill="#161b22" stroke="#30363d"/>
+      <text x="46" y="419" font-size="13" fill="#9aa4b2">notice: nobody ever needed to see the whole library. every friend only ever</text>
+      <text x="46" y="438" font-size="13" fill="#9aa4b2">held piles, tallies or one basket — and yet the total is exact.</text>
+    </g>
+  </svg>
+  <figcaption>The library plan. Steps 1–2 are the <b>Map</b> half; step 3 is the <b>Shuffle</b>; steps 4–5 are the <b>Reduce</b> half.</figcaption>
+</figure>
+
+<figure>
+  <img width="100%" src="images/parable-library.png" alt="Illustration of femboy friends in purple clothes at a library table counting words in books while a supervisor femboy in a lavender blazer holds a clipboard">
+  <figcaption>One master (the person with the clipboard) and many workers — the whole system in one cozy picture.</figcaption>
+</figure>
+
+<div class="callout">
+  <div class="t">why this plan is brilliant</div>
+  Three properties make it scale to millions of books: <b>(1)</b> friends never talk to each other
+  while counting — no arguments, no waiting; <b>(2)</b> if a friend falls asleep, you just give
+  their pile to someone else and nothing is lost; <b>(3)</b> adding friends linearly adds speed.
+  MapReduce is exactly this plan, executed by computers.
+</div>
+
+<!-- ======================= 2. WHAT IS MAPREDUCE ======================= -->
+<h2 id="whatis"><span class="chip">2</span>What MapReduce actually is</h2>
+
+<p class="lead">MapReduce is a programming model from a famous 2004 Google paper
+(“<i>MapReduce: Simplified Data Processing on Large Clusters</i>”, Dean &amp; Ghemawat).
+The library story you just read <b>is</b> the model. Here is the same plan with the
+proper vocabulary:</p>
+
+<table>
+  <tr><th>story</th><th>MapReduce term</th><th>what it really means</th></tr>
+  <tr><td>page pile</td><td><b>input split / chunk</b></td><td>a slice of the input data, small enough for one machine to chew quickly</td></tr>
+  <tr><td>friend + tally sheet</td><td><b>map task</b></td><td>a program that reads one chunk and <i>emits key/value pairs</i>. For wordcount: every word emits <code>(word, 1)</code></td></tr>
+  <tr><td>letter-count rule</td><td><b>partitioning function</b></td><td>a hash like <code>hash(word) mod R</code> that picks a basket — the same key always lands in the same basket, on every machine, forever</td></tr>
+  <tr><td>baskets + sorting</td><td><b>shuffle</b></td><td>the phase where all pairs with the same key travel to the one reducer that owns that key’s basket</td></tr>
+  <tr><td>adder friend</td><td><b>reduce task</b></td><td>a program that receives all pairs of one partition and combines them — for wordcount: <i>sum the counts</i></td></tr>
+  <tr><td>you, the planner</td><td><b>master</b></td><td>tracks who is alive, hands out tasks, watches progress, never touches the data itself</td></tr>
+</table>
+
+<p>So a MapReduce <b>job</b> is just two tiny functions you write…</p>
+
+<pre><code>map(document_chunk):        reduce(key, values):
+    for word in words(chunk)     return key, sum(values)
+        emit(word, 1)</code></pre>
+
+<p>…and everything else — splitting, distributing, shuffling, retrying when machines die,
+merging, writing the final output — is the framework’s job. That division of labor is why
+“mere mortals” could suddenly write distributed programs in three lines.</p>
+
+<figure>
+  <svg viewBox="0 0 960 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Pipeline: input documents, split, map workers, shuffle, reduce workers, final result">
+    <defs>
+      <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0 0L10 5L0 10z" fill="#9aa4b2"/>
+      </marker>
+      <linearGradient id="mapg" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#c084fc" stop-opacity=".25"/><stop offset="1" stop-color="#c084fc" stop-opacity=".05"/>
+      </linearGradient>
+    </defs>
+    <rect x="10" y="64" width="150" height="150" rx="10" fill="url(#mapg)" stroke="#c084fc"/>
+    <text x="85" y="96" font-size="14" fill="#c084fc" text-anchor="middle" font-weight="700">INPUT</text>
+    <text x="85" y="120" font-size="11.5" fill="#9aa4b2" text-anchor="middle">documents</text>
+    <text x="85" y="136" font-size="11.5" fill="#9aa4b2" text-anchor="middle">books · logs · wikis</text>
+    <path d="M160 139 H196" stroke="#9aa4b2" stroke-width="2" marker-end="url(#arr2)"/>
+    <rect x="200" y="64" width="150" height="150" rx="10" fill="rgba(87,217,154,.09)" stroke="#57d99a"/>
+    <text x="275" y="96" font-size="14" fill="#57d99a" text-anchor="middle" font-weight="700">SPLIT</text>
+    <text x="275" y="120" font-size="11.5" fill="#9aa4b2" text-anchor="middle">M chunks</text>
+    <text x="275" y="136" font-size="11.5" fill="#9aa4b2" text-anchor="middle">never cut a word</text>
+    <path d="M350 139 H386" stroke="#9aa4b2" stroke-width="2" marker-end="url(#arr2)"/>
+    <rect x="390" y="64" width="190" height="150" rx="10" fill="rgba(87,217,154,.09)" stroke="#57d99a"/>
+    <text x="485" y="96" font-size="14" fill="#57d99a" text-anchor="middle" font-weight="700">MAP (parallel)</text>
+    <text x="485" y="120" font-size="11.5" fill="#9aa4b2" text-anchor="middle">emit (word, 1)</text>
+    <text x="485" y="136" font-size="11.5" fill="#9aa4b2" text-anchor="middle">+ local pre-sum (combiner)</text>
+    <text x="485" y="152" font-size="11.5" fill="#9aa4b2" text-anchor="middle">R partition files each</text>
+    <path d="M580 139 H616" stroke="#9aa4b2" stroke-width="2" marker-end="url(#arr2)"/>
+    <rect x="620" y="64" width="160" height="150" rx="10" fill="rgba(232,121,249,.08)" stroke="#e879f9"/>
+    <text x="700" y="96" font-size="14" fill="#e879f9" text-anchor="middle" font-weight="700">SHUFFLE</text>
+    <text x="700" y="120" font-size="11.5" fill="#9aa4b2" text-anchor="middle">hash(word) mod R</text>
+    <text x="700" y="136" font-size="11.5" fill="#9aa4b2" text-anchor="middle">same word → same</text>
+    <text x="700" y="152" font-size="11.5" fill="#9aa4b2" text-anchor="middle">reduce worker, always</text>
+    <path d="M780 139 H816" stroke="#9aa4b2" stroke-width="2" marker-end="url(#arr2)"/>
+    <rect x="820" y="64" width="130" height="150" rx="10" fill="rgba(232,121,249,.08)" stroke="#e879f9"/>
+    <text x="885" y="96" font-size="14" fill="#e879f9" text-anchor="middle" font-weight="700">REDUCE</text>
+    <text x="885" y="120" font-size="11.5" fill="#9aa4b2" text-anchor="middle">sum counts</text>
+    <text x="885" y="136" font-size="11.5" fill="#9aa4b2" text-anchor="middle">per partition</text>
+    <text x="885" y="152" font-size="11.5" fill="#9aa4b2" text-anchor="middle">R tasks, parallel</text>
+    <path d="M885 214 V244" stroke="#9aa4b2" stroke-width="2" marker-end="url(#arr2)"/>
+    <rect x="620" y="248" width="330" height="40" rx="8" fill="rgba(87,217,154,.09)" stroke="#57d99a"/>
+    <text x="785" y="273" font-size="13" fill="#57d99a" text-anchor="middle" font-weight="700">MERGE → master stores the result</text>
+    <text x="430" y="273" font-size="12.5" fill="#9aa4b2" text-anchor="middle">the master only moves <tspan fill="#c084fc">instructions</tspan>, never data</text>
+  </svg>
+  <figcaption>The full pipeline. Data flows left to right; the green boxes run on many machines at once.</figcaption>
+</figure>
+
+<div class="callout">
+  <div class="t">why “wordcount” is the hello-world of mapreduce</div>
+  Word counting is the perfect first example because (a) it is instantly understandable,
+  (b) map and reduce are each three lines long, and yet (c) it exercises the <i>entire</i>
+  machinery — splits, parallel maps, hash partitioning, a real shuffle over the network,
+  parallel reduces and a final merge. If your cluster counts words correctly, it can do
+  anything MapReduce can.
+</div>
+
+<!-- ======================= 3. WORKED EXAMPLE ======================= -->
+<h2 id="worked"><span class="chip">3</span>WordCount, step by step</h2>
+
+<p class="lead">Let’s push one tiny sentence through the whole machine and watch every
+number. Our input document is:</p>
+
+<pre><code>"the big dog sat on the mat and the cat ate the fish"</code></pre>
+
+<p>It contains <span class="num">13 words</span> (with repeats) and
+<span class="num">10 unique words</span>. Suppose the cluster chose
+<span class="num">R = 3</span> partitions, and the partitioner is FNV-1a — the exact
+hash CuteyMR uses. Here are the real values it computes:</p>
+
+<table>
+  <tr><th>word</th><th>fnv32a(word)</th><th>mod 3 → basket</th></tr>
+  <tr><td>the</td><td class="num">3020861980</td><td class="num">1</td></tr>
+  <tr><td>big</td><td class="num">…</td><td class="num">0</td></tr>
+  <tr><td>dog</td><td class="num">…</td><td class="num">1</td></tr>
+  <tr><td>sat</td><td class="num">3592196823</td><td class="num">0</td></tr>
+  <tr><td>on</td><td class="num">1630810064</td><td class="num">2</td></tr>
+  <tr><td>mat</td><td class="num">3819107837</td><td class="num">2</td></tr>
+  <tr><td>and</td><td class="num">…</td><td class="num">2</td></tr>
+  <tr><td>cat</td><td class="num">108289031</td><td class="num">2</td></tr>
+  <tr><td>ate</td><td class="num">476152855</td><td class="num">1</td></tr>
+  <tr><td>fish</td><td class="num">2947385699</td><td class="num">2</td></tr>
+</table>
+
+<p class="lead"><b>Map.</b> A map worker reads the sentence and emits one pair per word
+— then (this is CuteyMR’s built-in <i>combiner</i>) pre-sums repeats locally so only
+10 tiny pairs leave the machine:</p>
+
+<figure>
+  <svg viewBox="0 0 960 330" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Map phase: input line becomes 10 combined pairs">
+    <rect x="30" y="60" width="420" height="70" rx="10" fill="rgba(57,208,195,.08)" stroke="#c084fc"/>
+    <text x="50" y="88" font-size="13" fill="#c084fc" font-weight="700">INPUT CHUNK (m0000)</text>
+    <text x="50" y="110" font-size="13.5" fill="#c9d6e3">"the big dog sat on the mat and the cat ate the fish"</text>
+    <path d="M240 130 V160" stroke="#9aa4b2" stroke-width="2" marker-end="url(#arr2)"/>
+    <g font-size="12.5">
+      <rect x="30" y="170" width="420" height="120" rx="10" fill="#161b22" stroke="#57d99a"/>
+      <text x="50" y="196" fill="#57d99a" font-weight="700">MAP + COMBINER — what the worker emits:</text>
+      <text x="50" y="222" fill="#c9d6e3">(the,4)&nbsp;&nbsp;(big,1)&nbsp;&nbsp;(dog,1)&nbsp;&nbsp;(sat,1)&nbsp;&nbsp;(on,1)</text>
+      <text x="50" y="244" fill="#c9d6e3">(mat,1)&nbsp;&nbsp;(and,1)&nbsp;&nbsp;(cat,1)&nbsp;&nbsp;(ate,1)&nbsp;&nbsp;(fish,1)</text>
+      <text x="50" y="274" fill="#9aa4b2" font-size="11.5">13 words in → only 10 pairs out. On real data this shrinks</text>
+      <text x="50" y="288" fill="#9aa4b2" font-size="11.5">network traffic by orders of magnitude.</text>
+    </g>
+    <path d="M460 230 H520" stroke="#9aa4b2" stroke-width="2" marker-end="url(#arr2)"/>
+    <g font-size="12.5">
+      <rect x="524" y="140" width="200" height="70" rx="8" fill="#1c2129" stroke="#57d99a"/>
+      <text x="540" y="168" fill="#c9d6e3">emit (the,1) ×4 …</text>
+      <text x="540" y="190" fill="#9aa4b2" font-size="11.5">“the naive way” — 13 pairs</text>
+      <rect x="524" y="230" width="200" height="70" rx="8" fill="rgba(87,217,154,.09)" stroke="#57d99a"/>
+      <text x="540" y="258" fill="#c9d6e3">emit (the,4) …</text>
+      <text x="540" y="280" fill="#9aa4b2" font-size="11.5">the combiner way — 10 pairs</text>
+    </g>
+    <text x="524" y="120" font-size="13" fill="#57d99a" font-weight="700">map is pure and local:</text>
+    <text x="524" y="106" font-size="12" fill="#9aa4b2">same input → same output, on any machine, any order</text>
+  </svg>
+  <figcaption>Map phase for our sentence. The combiner is an optional local pre-reduction — for word counting it is exactly the reduce function, applied early.</figcaption>
+</figure>
+
+<p class="lead"><b>Shuffle.</b> The worker writes each pair into one of R=3 partition files
+following the hash rule, and other workers fetch those files peer-to-peer when the reduce
+phase starts:</p>
+
+<figure>
+  <svg viewBox="0 0 960 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Shuffle: pairs flow by hash into three partition files">
+    <defs><marker id="arr3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#9aa4b2"/></marker></defs>
+    <g font-size="12.5">
+      <rect x="120" y="40" width="80" height="40" rx="6" fill="#1c2129" stroke="#57d99a"/><text x="132" y="65" fill="#c9d6e3">(the,4)</text>
+      <rect x="120" y="90" width="80" height="40" rx="6" fill="#1c2129" stroke="#57d99a"/><text x="132" y="115" fill="#c9d6e3">(big,1)</text>
+      <rect x="120" y="140" width="80" height="40" rx="6" fill="#1c2129" stroke="#57d99a"/><text x="132" y="165" fill="#c9d6e3">(dog,1)</text>
+      <rect x="120" y="190" width="80" height="40" rx="6" fill="#1c2129" stroke="#57d99a"/><text x="132" y="215" fill="#c9d6e3">(sat,1)</text>
+      <rect x="120" y="240" width="80" height="40" rx="6" fill="#1c2129" stroke="#57d99a"/><text x="132" y="265" fill="#c9d6e3">(on,1)</text>
+      <rect x="120" y="290" width="80" height="40" rx="6" fill="#1c2129" stroke="#57d99a"/><text x="132" y="315" fill="#c9d6e3">(mat,1)</text>
+      <rect x="440" y="40" width="80" height="40" rx="6" fill="#1c2129" stroke="#57d99a"/><text x="452" y="65" fill="#c9d6e3">(and,1)</text>
+      <rect x="440" y="90" width="80" height="40" rx="6" fill="#1c2129" stroke="#57d99a"/><text x="452" y="115" fill="#c9d6e3">(cat,1)</text>
+      <rect x="440" y="140" width="80" height="40" rx="6" fill="#1c2129" stroke="#57d99a"/><text x="452" y="165" fill="#c9d6e3">(ate,1)</text>
+      <rect x="440" y="190" width="80" height="40" rx="6" fill="#1c2129" stroke="#57d99a"/><text x="452" y="215" fill="#c9d6e3">(fish,1)</text>
+    </g>
+    <!-- arrows to partitions -->
+    <path d="M200 60 C300 60 320 110 420 120" stroke="#e879f9" stroke-width="2" fill="none" marker-end="url(#arr3)"/>
+    <path d="M200 110 C280 110 330 130 420 145" stroke="#c084fc" stroke-width="2" fill="none" marker-end="url(#arr3)"/>
+    <path d="M200 160 C270 160 340 165 420 170" stroke="#e879f9" stroke-width="2" fill="none" marker-end="url(#arr3)"/>
+    <path d="M200 210 C280 210 340 200 420 195" stroke="#c084fc" stroke-width="2" fill="none" marker-end="url(#arr3)"/>
+    <path d="M200 260 C290 260 340 235 420 220" stroke="#f3b35b" stroke-width="2" fill="none" marker-end="url(#arr3)"/>
+    <path d="M200 310 C300 310 330 255 420 245" stroke="#f3b35b" stroke-width="2" fill="none" marker-end="url(#arr3)"/>
+    <path d="M520 60 C620 60 640 105 740 118" stroke="#f3b35b" stroke-width="2" fill="none" marker-end="url(#arr3)"/>
+    <path d="M520 110 C600 110 660 130 740 143" stroke="#f3b35b" stroke-width="2" fill="none" marker-end="url(#arr3)"/>
+    <path d="M520 160 C600 160 660 175 740 168" stroke="#e879f9" stroke-width="2" fill="none" marker-end="url(#arr3)"/>
+    <path d="M520 210 C610 210 650 195 740 193" stroke="#f3b35b" stroke-width="2" fill="none" marker-end="url(#arr3)"/>
+    <!-- partition files -->
+    <g font-size="13">
+      <rect x="424" y="112" width="330" height="60" rx="8" fill="rgba(232,121,249,.08)" stroke="#e879f9"/>
+      <text x="440" y="136" fill="#e879f9" font-weight="700">partition 1 · part-0001.json.gz</text>
+      <text x="440" y="156" fill="#c9d6e3">the:4 · dog:1 · ate:1</text>
+      <rect x="424" y="182" width="330" height="60" rx="8" fill="rgba(57,208,195,.08)" stroke="#c084fc"/>
+      <text x="440" y="206" fill="#c084fc" font-weight="700">partition 0 · part-0000.json.gz</text>
+      <text x="440" y="226" fill="#c9d6e3">big:1 · sat:1</text>
+      <rect x="424" y="252" width="330" height="60" rx="8" fill="rgba(243,179,91,.08)" stroke="#f3b35b"/>
+      <text x="440" y="276" fill="#f3b35b" font-weight="700">partition 2 · part-0002.json.gz</text>
+      <text x="440" y="296" fill="#c9d6e3">on:1 · mat:1 · and:1 · cat:1 · fish:1</text>
+    </g>
+    <text x="424" y="340" font-size="12" fill="#9aa4b2">with M map tasks there are M × R such files; each reduce task r fetches</text>
+    <text x="424" y="356" font-size="12" fill="#9aa4b2">partition r from <tspan fill="#57d99a">every</tspan> map worker — that movement is the shuffle</text>
+    <text x="120" y="356" font-size="12" fill="#9aa4b2">hash(word) mod 3 decides the color</text>
+  </svg>
+  <figcaption>The shuffle: pairs are routed by hash so every occurrence of a word meets every other occurrence, in exactly one place.</figcaption>
+</figure>
+
+<p class="lead"><b>Reduce.</b> Each reduce worker owns one partition. It fetches that
+partition’s file from <i>every</i> map worker (peer-to-peer HTTP in CuteyMR), merges and
+sums them, and stores its partial result:</p>
+
+<figure>
+  <svg viewBox="0 0 960 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Reduce: each partition is summed and the master merges results">
+    <defs><marker id="arr4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#9aa4b2"/></marker></defs>
+    <g font-size="12.5">
+      <rect x="40" y="30" width="230" height="80" rx="8" fill="rgba(57,208,195,.08)" stroke="#c084fc"/>
+      <text x="56" y="54" fill="#c084fc" font-weight="700">reduce r0000 (partition 0)</text>
+      <text x="56" y="76" fill="#9aa4b2">fetches M files “part-0000”</text>
+      <text x="56" y="98" fill="#c9d6e3">big: 1+0+0+… → big = 1</text>
+      <rect x="40" y="130" width="230" height="80" rx="8" fill="rgba(232,121,249,.08)" stroke="#e879f9"/>
+      <text x="56" y="154" fill="#e879f9" font-weight="700">reduce r0001 (partition 1)</text>
+      <text x="56" y="176" fill="#9aa4b2">fetches M files “part-0001”</text>
+      <text x="56" y="198" fill="#c9d6e3">the: 4+0+0+… → the = 4</text>
+      <rect x="40" y="230" width="0" height="0"/>
+    </g>
+    <g font-size="12.5">
+      <rect x="340" y="130" width="230" height="80" rx="8" fill="rgba(243,179,91,.08)" stroke="#f3b35b"/>
+      <text x="356" y="154" fill="#f3b35b" font-weight="700">reduce r0002 (partition 2)</text>
+      <text x="356" y="176" fill="#9aa4b2">fetches M files “part-0002”</text>
+      <text x="356" y="198" fill="#c9d6e3">on, mat, and, cat, fish = 1 each</text>
+    </g>
+    <path d="M280 70 C340 70 360 130 400 150" stroke="#9aa4b2" stroke-width="2" fill="none" marker-end="url(#arr4)"/>
+    <path d="M280 170 H330" stroke="#9aa4b2" stroke-width="2" fill="none" marker-end="url(#arr4)"/>
+    <path d="M580 170 C660 170 680 140 720 120" stroke="#9aa4b2" stroke-width="2" fill="none" marker-end="url(#arr4)"/>
+    <g>
+      <rect x="620" y="30" width="330" height="80" rx="10" fill="rgba(87,217,154,.09)" stroke="#57d99a"/>
+      <text x="640" y="58" font-size="14" fill="#57d99a" font-weight="700">MASTER MERGE</text>
+      <text x="640" y="82" font-size="12.5" fill="#c9d6e3">the 4 · and 1 · ate 1 · big 1 · cat 1</text>
+      <text x="640" y="100" font-size="12.5" fill="#c9d6e3">dog 1 · fish 1 · mat 1 · on 1 · sat 1</text>
+    </g>
+    <g>
+      <rect x="620" y="130" width="330" height="80" rx="10" fill="#161b22" stroke="#30363d"/>
+      <text x="640" y="158" font-size="13" fill="#c084fc" font-weight="700">wordcount.tsv (top of file)</text>
+      <text x="640" y="182" font-size="12.5" fill="#c9d6e3">the    4</text>
+      <text x="640" y="200" font-size="12.5" fill="#c9d6e3">and    1   ate   1   big   1  …</text>
+    </g>
+    <path d="M785 110 V126" stroke="#9aa4b2" stroke-width="2" marker-end="url(#arr4)"/>
+  </svg>
+  <figcaption>Reduce + final merge. Partitions are disjoint by construction, so the master’s merge is a trivial concatenation — no conflicts are even possible.</figcaption>
+</figure>
+
+<div class="callout">
+  <div class="t">the correctness argument, in one breath</div>
+  No word is ever lost because chunks never split words; no word is ever double-counted
+  because chunks are disjoint; and every occurrence of a word meets every other occurrence
+  exactly once because <code>hash(word) mod R</code> routes deterministically to one reducer.
+  Parallelism never has to argue with correctness — the hash function already agreed on
+  everything beforehand.
+</div>
+
+<!-- ======================= 4. ARCHITECTURE ======================= -->
+<h2 id="arch"><span class="chip">4</span>Inside CuteyMR — the architecture</h2>
+
+<p class="lead">CuteyMR implements the story faithfully with three kinds of participants:
+<b>one master</b> (the planner), <b>N workers</b> (the friends), and <b>two separate
+networks</b> — a control plane where instructions flow, and a data plane where the actual
+words travel peer-to-peer.</p>
+
+<figure>
+  <svg viewBox="0 0 960 560" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="CuteyMR architecture: master with control plane to workers, workers with peer-to-peer data plane">
+    <defs>
+      <marker id="arrA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#c084fc"/></marker>
+      <marker id="arrB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#f3b35b"/></marker>
+      <marker id="arrC" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#9aa4b2"/></marker>
+    </defs>
+    <!-- control plane band -->
+    <rect x="20" y="18" width="920" height="150" rx="12" fill="rgba(57,208,195,.05)" stroke="#c084fc" stroke-dasharray="6 5"/>
+    <text x="40" y="44" font-size="13" fill="#c084fc" font-weight="700">CONTROL PLANE — HTTP + JSON (tiny messages: instructions, heartbeats, progress)</text>
+    <!-- master -->
+    <rect x="380" y="60" width="200" height="86" rx="10" fill="rgba(57,208,195,.12)" stroke="#c084fc" stroke-width="2"/>
+    <text x="480" y="88" font-size="15" fill="#c084fc" text-anchor="middle" font-weight="700">♛ MASTER :8080</text>
+    <text x="480" y="108" font-size="11.5" fill="#c9d6e3" text-anchor="middle">scheduler · phases · merge</text>
+    <text x="480" y="126" font-size="11.5" fill="#c9d6e3" text-anchor="middle">/api/register · /heartbeat</text>
+    <text x="480" y="140" font-size="11.5" fill="#c9d6e3" text-anchor="middle">/task/next · /task/done · /status</text>
+    <!-- workers on control plane -->
+    <g>
+      <rect x="60" y="66" width="170" height="74" rx="10" fill="#161b22" stroke="#57d99a"/>
+      <text x="145" y="92" font-size="13" fill="#57d99a" text-anchor="middle" font-weight="700">worker w-alpha</text>
+      <text x="145" y="112" font-size="11" fill="#9aa4b2" text-anchor="middle">2 cores → 2 slot goroutines</text>
+      <text x="145" y="128" font-size="11" fill="#9aa4b2" text-anchor="middle">pulls work, reports done</text>
+      <rect x="730" y="66" width="170" height="74" rx="10" fill="#161b22" stroke="#57d99a"/>
+      <text x="815" y="92" font-size="13" fill="#57d99a" text-anchor="middle" font-weight="700">worker w-beta</text>
+      <text x="815" y="112" font-size="11" fill="#9aa4b2" text-anchor="middle">8 cores → 8 slot goroutines</text>
+      <text x="815" y="128" font-size="11" fill="#9aa4b2" text-anchor="middle">pulls work, reports done</text>
+      <rect x="395" y="200" width="170" height="74" rx="10" fill="#161b22" stroke="#57d99a"/>
+      <text x="480" y="226" font-size="13" fill="#57d99a" text-anchor="middle" font-weight="700">worker w-gamma</text>
+      <text x="480" y="246" font-size="11" fill="#9aa4b2" text-anchor="middle">4 cores → 4 slot goroutines</text>
+      <text x="480" y="262" font-size="11" fill="#9aa4b2" text-anchor="middle">file server :910x</text>
+    </g>
+    <!-- control arrows -->
+    <path d="M240 100 C300 100 320 96 376 96" stroke="#c084fc" stroke-width="2" fill="none" marker-end="url(#arrA)"/>
+    <path d="M380 126 C320 126 300 122 236 122" stroke="#c084fc" stroke-width="2" fill="none" marker-dasharray="4 4" marker-end="url(#arrA)"/>
+    <path d="M726 100 C660 100 640 96 586 96" stroke="#c084fc" stroke-width="2" fill="none" marker-end="url(#arrA)"/>
+    <path d="M580 126 C640 126 660 122 724 122" stroke="#c084fc" stroke-width="2" fill="none" stroke-dasharray="4 4" marker-end="url(#arrA)"/>
+    <text x="252" y="88" font-size="10.5" fill="#c084fc">register+heartbeat</text>
+    <text x="596" y="88" font-size="10.5" fill="#c084fc">register+heartbeat</text>
+    <text x="252" y="140" font-size="10.5" fill="#c084fc">task assignments</text>
+    <text x="596" y="140" font-size="10.5" fill="#c084fc">task reports</text>
+    <!-- data plane band -->
+    <rect x="20" y="185" width="920" height="300" rx="12" fill="rgba(243,179,91,.05)" stroke="#f3b35b" stroke-dasharray="6 5"/>
+    <text x="40" y="211" font-size="13" fill="#f3b35b" font-weight="700">DATA PLANE — peer-to-peer HTTP (the actual bytes: input chunks, partition files, results)</text>
+    <!-- input -->
+    <g>
+      <rect x="60" y="240" width="170" height="90" rx="10" fill="#161b22" stroke="#c084fc"/>
+      <text x="145" y="266" font-size="12.5" fill="#c084fc" text-anchor="middle" font-weight="700">INPUT FILES</text>
+      <text x="145" y="286" font-size="11" fill="#9aa4b2" text-anchor="middle">master serves chunks at</text>
+      <text x="145" y="302" font-size="11" fill="#9aa4b2" text-anchor="middle">/api/input/m0042</text>
+      <text x="145" y="318" font-size="11" fill="#9aa4b2" text-anchor="middle">512 KiB · word-aligned</text>
+    </g>
+    <!-- map outputs on w-alpha -->
+    <g>
+      <rect x="300" y="330" width="200" height="64" rx="8" fill="rgba(87,217,154,.08)" stroke="#57d99a"/>
+      <text x="400" y="354" font-size="12" fill="#57d99a" text-anchor="middle" font-weight="700">w-alpha /tasks/m0042/</text>
+      <text x="400" y="374" font-size="11" fill="#c9d6e3" text-anchor="middle">part-0000 … part-000R .json.gz</text>
+    </g>
+    <!-- reduce fetch arrows P2P -->
+    <path d="M145 330 C160 420 280 450 380 452" stroke="#f3b35b" stroke-width="2" fill="none" marker-end="url(#arrB)"/>
+    <path d="M470 396 C500 420 520 430 560 438" stroke="#f3b35b" stroke-width="2" fill="none" marker-end="url(#arrB)"/>
+    <text x="200" y="440" font-size="11" fill="#f3b35b">during SHUFFLE: reduce workers fetch partition r</text>
+    <text x="200" y="456" font-size="11" fill="#f3b35b">files directly from every map worker — no master bottleneck</text>
+    <!-- reduce results -->
+    <g>
+      <rect x="560" y="420" width="340" height="50" rx="8" fill="rgba(232,121,249,.08)" stroke="#e879f9"/>
+      <text x="730" y="440" font-size="12" fill="#e879f9" text-anchor="middle" font-weight="700">reduce results r-0000 … r-000R .json.gz</text>
+      <text x="730" y="458" font-size="11" fill="#9aa4b2" text-anchor="middle">served by each worker at /files/reduce/r</text>
+    </g>
+    <path d="M815 416 V392 C815 340 700 320 596 300" stroke="#9aa4b2" stroke-width="2" fill="none" stroke-dasharray="3 4" marker-end="url(#arrC)"/>
+    <text x="612" y="390" font-size="11" fill="#9aa4b2">master downloads results during MERGE</text>
+    <!-- final output -->
+    <g>
+      <rect x="620" y="240" width="280" height="90" rx="10" fill="rgba(87,217,154,.09)" stroke="#57d99a"/>
+      <text x="760" y="266" font-size="12.5" fill="#57d99a" text-anchor="middle" font-weight="700">MASTER STORES THE RESULT</text>
+      <text x="760" y="288" font-size="11" fill="#c9d6e3" text-anchor="middle">wordcount.json · wordcount.tsv</text>
+      <text x="760" y="304" font-size="11" fill="#c9d6e3" text-anchor="middle">top100.txt · job-summary.json</text>
+      <text x="760" y="320" font-size="11" fill="#9aa4b2" text-anchor="middle">the master is the single source of truth</text>
+    </g>
+    <!-- phase strip -->
+    <g font-size="11.5">
+      <rect x="60" y="500" width="840" height="40" rx="8" fill="#161b22" stroke="#30363d"/>
+      <text x="84" y="525" fill="#9aa4b2">job phases:</text>
+      <text x="162" y="525" fill="#57d99a" font-weight="700">WAITING</text>
+      <text x="222" y="525" fill="#9aa4b2">→</text>
+      <text x="240" y="525" fill="#57d99a" font-weight="700">MAP</text>
+      <text x="282" y="525" fill="#9aa4b2">→</text>
+      <text x="300" y="525" fill="#e879f9" font-weight="700">SHUFFLE</text>
+      <text x="372" y="525" fill="#9aa4b2">→</text>
+      <text x="390" y="525" fill="#e879f9" font-weight="700">REDUCE</text>
+      <text x="462" y="525" fill="#9aa4b2">→</text>
+      <text x="480" y="525" fill="#f3b35b" font-weight="700">MERGE</text>
+      <text x="540" y="525" fill="#9aa4b2">→</text>
+      <text x="560" y="525" fill="#57d99a" font-weight="700">DONE</text>
+      <text x="620" y="525" fill="#9aa4b2">(any phase may roll back to MAP if a worker dies holding intermediate files)</text>
+    </g>
+  </svg>
+  <figcaption>CuteyMR’s two planes. Purple = control (tiny JSON messages), amber = data (files, peer-to-peer). The master schedules everything but never becomes a data bottleneck.</figcaption>
+</figure>
+
+<h3>One process, two roles, all cores</h3>
+<p>Each <code>mr-worker</code> process creates <b>one goroutine per CPU core</b> — a
+<i>slot</i>. A slot is a simple loop: <i>ask the master for work → do it → report → repeat.</i>
+During the map phase slots run map tasks; during the reduce phase the very same slots run
+reduce tasks. Nothing is pre-assigned: whichever worker asks first gets the next idle task,
+so machines with more cores naturally take more work (they simply ask more often).</p>
+
+<div class="callout">
+  <div class="t">why a pull model (workers ask) instead of push (master assigns)?</div>
+  A worker knows exactly when its slot is free — the master can only guess. Pull-based
+  scheduling makes load balancing automatic: fast machines ask more, get more. The 2004
+  Google paper uses the same trick (idle workers ask for tasks), and so does Hadoop.
+</div>
+
+<h3>Life of a job, in order</h3>
+<ol>
+  <li><b>Boot.</b> The master starts and waits. Workers register, announcing their
+  <span class="num">cores</span>, <span class="num">RAM</span>, hostname and the address of
+  their own little file server. The dashboard already draws them — with dashed “ghost”
+  cards for workers that haven’t arrived yet.</li>
+  <li><b>Auto-start.</b> The moment the target number of workers is connected, the master
+  splits every input document into word-aligned chunks (~512 KiB by default), creates
+  <span class="num">M</span> map tasks and <span class="num">R</span> reduce tasks
+  (R defaults to 2×workers, min 4) and enters the <b>MAP</b> phase.</li>
+  <li><b>Map.</b> Slots pull map tasks, download their chunk from the master, tokenize,
+  combine locally, and write R gzipped JSON partition files. The partition files are
+  <i>stayed</i> on the worker that produced them — that’s the peer-to-peer data plane.</li>
+  <li><b>Shuffle.</b> When the last map task finishes, the master builds each reduce task’s
+  shopping list (which worker holds which file) and hands reduce tasks out. Reducers start
+  pulling files from their peers — the network does the sorting.</li>
+  <li><b>Reduce.</b> Each reducer sums its partition and stores <code>r-000r.json.gz</code>,
+  then tells the master where to find it.</li>
+  <li><b>Merge.</b> The master downloads all R results, merges them (they’re disjoint by
+  hash — no conflicts possible), sorts by count, and writes
+  <code>wordcount.json</code>, <code>wordcount.tsv</code>, <code>top100.txt</code> and
+  <code>job-summary.json</code> into the output directory.</li>
+  <li><b>Shutdown.</b> The next time workers ask for work they receive a
+  <code>shutdown</code> assignment; they print their personal summary and exit with a smile
+  <code>(^_^)/</code>.</li>
+</ol>
+
+<!-- ======================= 5. PROTOCOL ======================= -->
+<h2 id="protocol"><span class="chip">5</span>The wire protocol</h2>
+
+<p class="lead">Plain HTTP + JSON over TCP — deliberately boring so you can debug the whole
+cluster with <span class="kbd">curl</span>. Every message fits on one screen.</p>
+
+<table>
+  <tr><th>direction</th><th>endpoint</th><th>purpose</th><th>key fields</th></tr>
+  <tr><td>worker → master</td><td><code>POST /api/register</code></td><td>join the cluster, announce resources &amp; file-server address</td><td><code>worker_id, host, file_port, cores, memory_mb</code></td></tr>
+  <tr><td>worker → master</td><td><code>POST /api/heartbeat</code> <span class="tag proto">1/s</span></td><td>“I’m alive” + live stats for the dashboards</td><td><code>active[] {task, progress, fetch 4/12…}, words, bytes</code></td></tr>
+  <tr><td>worker → master</td><td><code>GET /api/task/next?worker=…</code></td><td>pull the next task (or <code>none</code> / <code>shutdown</code>)</td><td>map: <code>input_url, num_partitions</code> · reduce: <code>sources[]</code></td></tr>
+  <tr><td>worker → master</td><td><code>POST /api/task/done</code></td><td>report success (stats + where files live) or failure</td><td><code>stats, partition_sizes[] · result_url · failed_source</code></td></tr>
+  <tr><td>master → worker</td><td><code>GET /api/input/{task}</code></td><td>serve one word-aligned input chunk</td><td>raw text bytes</td></tr>
+  <tr><td>worker → worker</td><td><code>GET /files/map/{task}/{r}</code></td><td><b>the shuffle</b>: fetch one intermediate partition file from a peer</td><td>gzip JSON <code>{word: count}</code></td></tr>
+  <tr><td>worker → master</td><td><code>GET /files/reduce/{r}</code></td><td>master downloads one final reduce result during MERGE</td><td>gzip JSON <code>{word: count}</code></td></tr>
+  <tr><td>anyone</td><td><code>GET /api/status</code></td><td>full JSON snapshot of the cluster (used by tests)</td><td>job, workers, all tasks, event log</td></tr>
+</table>
+
+<div class="callout">
+  <div class="t">why http and not websockets?</div>
+  HTTP/JSON keeps every message stateless, retryable and inspectable — you can literally
+  watch the shuffle happen with <code>tail -f</code> and replay any request with
+  <code>curl</code>. For a batch workload that polls every few hundred milliseconds,
+  WebSockets would add complexity (connection state, reconnect logic, frame parsing)
+  without adding capability. The heartbeat poll doubles as liveness detection for free.
+</div>
+
+<!-- ======================= 6. FAULT TOLERANCE ======================= -->
+<h2 id="fault"><span class="chip">6</span>When workers die</h2>
+
+<p class="lead">Machines crash, networks blip, someone trips over a cable. CuteyMR treats
+all of it as a scheduling problem, not a catastrophe. Three mechanisms cooperate:</p>
+
+<table>
+  <tr><th>mechanism</th><th>detects</th><th>recovers</th></tr>
+  <tr><td><b>heartbeat timeout</b><br><span class="tag proto">10 s, checked every second</span></td><td>a worker that went silent entirely</td><td>master re-queues every task that worker held — including <i>completed</i> map tasks whose intermediate files died with it</td></tr>
+  <tr><td><b>data-plane probe</b><br><span class="tag proto">on fetch failure</span></td><td>a reduce task that cannot fetch a peer’s file</td><td>master actively pings that peer’s file server; if it is dead, the worker is marked dead <i>immediately</i> — no waiting for the 10-second timeout while retries burn</td></tr>
+  <tr><td><b>MAP rollback</b></td><td>a dead worker whose partition files are still needed</td><td>the job rolls back to the MAP phase, the affected chunks are re-processed on healthy machines, and the shuffle is rebuilt — reduce tasks that already finished keep their results</td></tr>
+</table>
+
+<p>Every task tolerates <span class="num">3 failures</span>; only then does the job declare
+FAILURE (a “poison” task would otherwise loop forever). Reports are idempotent — if a
+“task done” message gets lost and re-sent, the master simply ignores the duplicate. And
+because map and reduce are <i>pure functions</i>, re-running a task on a different machine
+always yields the identical answer; that single property is what makes all of this
+recovery possible at all.</p>
+
+<div class="callout warn">
+  <div class="t">tested with fire</div>
+  The test suite literally executes <code>kill -9</code> on a worker mid-job — once during
+  the map phase and once during the shuffle — and then verifies the final wordcount
+  <i>byte-for-byte</i> against a sequential reference run. Both scenarios end in
+  <b>PASS</b>. Section 11 shows the transcripts.
+</div>
+
+<!-- ======================= 7. DASHBOARDS ======================= -->
+<h2 id="dashboards"><span class="chip">7</span>The terminal dashboards</h2>
+
+<p class="lead">Every process — master and each worker — renders its own live dashboard,
+repainting the terminal ~4 times a second with pure ANSI escapes (no dashboard library, no
+dependency). The master’s centerpiece is the <b>cluster topology</b>: the master box, a
+network “bus”, and one card per worker with a face that reflects its mood.</p>
+
+<table>
+  <tr><th>face</th><th>meaning</th></tr>
+  <tr><td class="ans"><span class="d">(-.-)z</span></td><td>connected, waiting for the job to start (asleep)</td></tr>
+  <tr><td class="ans"><span class="g">(&gt;_&lt;)</span></td><td>mapping hard</td></tr>
+  <tr><td class="ans"><span class="p">(^_-)</span></td><td>reducing (winking — almost done)</td></tr>
+  <tr><td class="ans"><span class="y">(&gt;o&lt;)</span></td><td>doing both map and reduce at once</td></tr>
+  <tr><td class="ans"><span class="w">(o_o)</span></td><td>idle, watching</td></tr>
+  <tr><td class="ans"><span class="g">(^▽^)</span></td><td>job finished, happy</td></tr>
+  <tr><td class="ans"><span class="y">(x_x)</span></td><td>unreachable / dead</td></tr>
+  <tr><td class="ans"><span class="d">(? ?)</span></td><td>ghost card — the master is still waiting for this worker to connect</td></tr>
+</table>
+
+<p>Here are three <b>real frames</b> captured from a live run (ANSI colors flattened for
+print — on a terminal the bars are green/pink/amber and the packet dots animate along the
+wires):</p>
+
+<h3>Waiting for the swarm</h3>
+<div class="term-frame"><pre> ● CUTEYMR  MASTER                                                              WAITING · workers 1/3 · 00:00
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+ ⠋ waiting for workers 1/3 — job auto-starts when all 3 connect
+
+┌─ CLUSTER TOPOLOGY — 1/3 online ────────────────────────────────────────────────────────────────────────────┐
+│                                   ┌────────────────────────────────────┐                                   │
+│                                   │         ♛ CUTEYMR  MASTER          │                                   │
+│                                   │         listening on :8083         │                                   │
+│                                   │              WAITING               │                                   │
+│                                   │             0 words/s              │                                   │
+│                                   └────────────────────────────────────┘                                   │
+│                                                      │                                                     │
+│                                                      │                                                     │
+│                      ─────────────────────────────────────────────────────────────────                     │
+│                      │                               │                               │                     │
+│       ┌────────────────────────────┐  ┌────────────────────────────┐  ┌────────────────────────────┐       │
+│       │ (-.-)zw-calm-jackal-4f08   │  │                            │  │                            │       │
+│       │ 127.0.0.1:9312             │  │                            │  │                            │       │
+│       │ cpu ░░░░░░░░░░ 0/2         │  │                            │  │           (? ?)            │       │
+│       │ done 0 · 0 words           │  │      awaiting worker…      │  │      awaiting worker…      │       │
+│       │ ready                      │  │                            │  │                            │       │
+│       └────────────────────────────┘  └────────────────────────────┘  └────────────────────────────┘       │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌─ WORKERS ──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│WORKER                HOST                CORES  MEM      STATE    DONE   WORDS      RATE                   │
+│────────────────────────────────────────────────────────────────────────────────────────────────────────────│
+│w-calm-jackal-4f08    127.0.0.1:9312       2      4.06GB   alive    0      0           0/s                  │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────────┘</pre></div>
+<p>The first person is asleep at their desk <code>(-.-)z</code>; the two ghost cards are the
+master saying “two seats still open”. The ⠋ spinner and the elapsed clock tick live.</p>
+
+<h3>Mid-map, everyone sweating</h3>
+<div class="term-frame"><pre> ● CUTEYMR  MASTER  · wordcount job                                                 MAP · workers 3/3 · 00:01
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+ MAP     ███████████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░   49%  61/124 tasks  00:01
+ SHUFFLE ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░    0%  0/0 files  0B / 105.1kB
+ REDUCE  ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░    0%  0/12 tasks  00:00
+ rate 0 w/s · counted 3.32M words · input 29.6MB · intermediate 105.1kB · uptime 00:02
+
+┌─ CLUSTER TOPOLOGY — 3/3 online ────────────────────────────────────────────────────────────────────────────┐
+│                                   ┌────────────────────────────────────┐                                   │
+│                                   │         ♛ CUTEYMR  MASTER          │                                   │
+│                                   │         listening on :8083         │                                   │
+│                                   │          phase MAP 49%             │                                   │
+│                                   │             0 words/s              │                                   │
+│                                   └────────────────────────────────────┘                                   │
+│                                                      │                                                     │
+│                                                      │                                                     │
+│                      ─────────────────────────────────────────────────────────────────                     │
+│                      O                               o                               ∙                     │
+│       ┌────────────────────────────┐  ┌────────────────────────────┐  ┌────────────────────────────┐       │
+│       │ (&gt;_&lt;) w-zesty-ibex-a444    │  │ (&gt;_&lt;) w-happy-marmot-9654  │  │ (&gt;_&lt;) w-cosmic-panda-e82e  │       │
+│       │ 127.0.0.1:9312             │  │ 127.0.0.1:9313             │  │ 127.0.0.1:9311             │       │
+│       │ cpu ██████████ 2/2         │  │ cpu ██████████ 2/2         │  │ cpu █████░░░░░ 1/2         │       │
+│       │ done 19 · 1.03M words      │  │ done 21 · 1.17M words      │  │ done 21 · 1.13M words      │       │
+│       │ mapping×2                  │  │ mapping×2                  │  │ mapping×1                  │       │
+│       └────────────────────────────┘  └────────────────────────────┘  └────────────────────────────┘       │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────────┘</pre></div>
+<p>All three workers show their <code>(&gt;_&lt;)</code> “concentrating” face, CPU bars are
+full, and the little <code>O o ∙</code> glyphs on the wires are <b>packets</b> — they
+animate up and down the drops while work flows (during the shuffle phase the horizontal bus
+itself gets moving dots, like a busy Ethernet segment).</p>
+
+<h3>Done — with the results built in</h3>
+<div class="term-frame"><pre> ● CUTEYMR  MASTER  · wordcount job                                                DONE · workers 3/3 · 00:07
+
+ MAP     ███████████████████████████████████████████████████  100%  124/124 tasks  00:01
+ SHUFFLE ███████████████████████████████████████████████████  100%  1488/1488 files  211.7kB / 211.7kB
+ REDUCE  ███████████████████████████████████████████████████  100%  12/12 tasks  00:00
+ rate 4.14M w/s · counted 6.56M words · input 29.6MB · intermediate 211.7kB · uptime 00:02
+
+┌─ CLUSTER TOPOLOGY — 3/3 online ────────────────────────────────────────────────────────────────────────────┐
+│                                   ┌────────────────────────────────────┐                                   │
+│                                   │         ♛ CUTEYMR  MASTER          │                                   │
+│                                   │             DONE 100%              │                                   │
+│                                   └────────────────────────────────────┘                                   │
+│       ┌────────────────────────────┐  ┌────────────────────────────┐  ┌────────────────────────────┐       │
+│       │ (^▽^) w-merry-tiger-e9d1   │  │ (^▽^) w-proud-raven-7d10   │  │ (^▽^) w-sunny-cobra-53e7   │       │
+│       │ finished                   │  │ finished                   │  │ finished                   │       │
+│       └────────────────────────────┘  └────────────────────────────┘  └────────────────────────────┘       │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌─ WORKERS ──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│w-merry-tiger-e9d1    127.0.0.1:9313       2      4.06GB   alive    33     1.81M       0/s                  │
+│w-proud-raven-7d10    127.0.0.1:9312       2      4.06GB   alive    30     1.66M       0/s                  │
+│w-sunny-cobra-53e7    127.0.0.1:9311       2      4.06GB   alive    71     3.10M       0/s                  │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌─ RESULTS — TOP WORDS ──────────────────────────────────────────────────────────────────────────────────────┐
+│the                 835.4k ████████████████████████████████████████████████████████████████████████         │
+│of                  418.6k ███████████████████████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░         │
+│and                 279.0k █████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░         │
+│to                  208.6k ███████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░         │
+│a                   167.8k ████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░         │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────────┘</pre></div>
+<p>The final screen stays up (until <span class="kbd">Ctrl+C</span>) so you can admire the
+top words, each worker’s share, and the whole event log. Meanwhile each <b>worker’s own
+dashboard</b> shows its slots working — one line per CPU core:</p>
+
+<div class="term-frame"><pre> ● CUTEYMR  WORKER  w-lucky-tiger-4539 (&gt;_&lt;)                                       MAP · cluster 3/3 · 00:01
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+┌─ TASK SLOTS — 2 cores, one goroutine each ─────────────────────────────────────────────────────────────────┐
+│slot  type     task     stage          progress                                    words      rate          │
+│────────────────────────────────────────────────────────────────────────────────────────────────────────────│
+│s0    map      m0047    scan 62%       ████████████████░░░░  62%                  55.7k    0/s             │
+│s1    map      m0051    fetch input    ██████░░░░░░░░░░░░░░  31%                  21.3k    0/s             │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌─ THIS WORKER ──────────────────────────────────────────────────────────────────────────────────────────────┐
+│tasks 18  (map 18 · reduce 0)   words counted 954.2k   pairs merged 0                                       │
+│read 4.3MB   wrote 31.9kB   errors 0   uptime 00:01                                                         │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌─ CLUSTER ──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│phase MAP   workers 3/3   cluster rate 1.65M w/s                                                             │
+│my share of counted words: 62.1%  (954.2k of 1.54M)                                                         │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────────┘</pre></div>
+
+<!-- ======================= 8. CODE WALKTHROUGH ======================= -->
+<h2 id="code"><span class="chip">8</span>A walk through the code</h2>
+
+<p class="lead">The whole system is ~2,900 lines of Go in four internal packages plus four
+commands — small enough to read in an evening, structured so each concern has exactly one
+home.</p>
+
+<div class="filetree"><pre>
+cuteymr/
+├── <span class="d">cmd/</span>                      <span class="c">one small main() per binary</span>
+│   ├── <span class="d">master/</span>    <span class="tag go">main.go</span>   flags → master.New(cfg) → Start → dashboard → wait
+│   ├── <span class="d">worker/</span>    <span class="tag go">main.go</span>   flags → worker.New(cfg) → file server → register → Run()
+│   ├── <span class="d">mockgen/</span>   <span class="tag go">main.go</span>   deterministic mock books (zipf-ish word mix)
+│   └── <span class="d">wcseq/</span>     <span class="tag go">main.go</span>   sequential reference + verifier (--check)
+├── <span class="d">internal/common/</span>           <span class="c">shared by master &amp; workers</span>
+│   ├── <span class="tag proto">types.go</span>       every wire message struct (one screen of JSON tags)
+│   ├── <span class="tag proto">http.go</span>        JSON helpers + retrying client (GetJSON/PostJSON/GetBytes)
+│   ├── <span class="tag go">tokenize.go</span>     THE word definition + FNV-1a + PartitionOf + humanize
+│   ├── <span class="tag go">jsonio.go</span>       gzip+JSON file codec for all intermediate data
+│   └── <span class="tag ui">eventlog.go</span>     ring buffer of timestamped events (feeds dashboards)
+├── <span class="d">internal/termui/</span>          <span class="c">dependency-free terminal canvas</span>
+│   ├── <span class="tag ui">canvas.go</span>       Cell grid → ANSI string; boxes, bars, sparklines
+│   └── <span class="tag ui">term_linux.go</span>   TIOCGWINSZ ioctl for real terminal size
+├── <span class="d">internal/master/</span>
+│   ├── <span class="tag go">state.go</span>        all cluster state behind ONE mutex
+│   ├── <span class="tag go">scheduler.go</span>    job lifecycle: split → assign → transitions → recovery
+│   ├── <span class="tag go">server.go</span>       HTTP endpoints + worker monitor + data-plane probe
+│   ├── <span class="tag go">merge.go</span>        download R results, merge, write output files
+│   └── <span class="tag ui">dashboard.go</span>    the animated master dashboard
+├── <span class="d">internal/worker/</span>
+│   ├── <span class="tag go">worker.go</span>       slots, heartbeats, registration, lifecycle
+│   ├── <span class="tag go">tasks.go</span>        executeMap / executeReduce with live progress
+│   ├── <span class="tag go">files.go</span>        peer-to-peer file server (path-traversal safe)
+│   └── <span class="tag ui">dashboard.go</span>    the worker dashboard
+├── <span class="d">scripts/</span>  run_demo.sh · test_fault_tolerance.sh · verify.sh
+├── <span class="d">data/input/</span>  mock documents   <span class="d">data/output/</span>  final results land here
+└── Makefile · README.md · this guide</pre></div>
+
+<h3>The single source of truth for “what is a word”</h3>
+<p>Everything — mappers, combiner, and the sequential verifier — shares one tokenizer, which
+is what makes bit-exact verification possible. A word is a maximal run of
+<code>[a-z0-9'-]</code> in the lowercased text, and lone punctuation is skipped:</p>
+
+<pre><code>// internal/common/tokenize.go
+func TokenizeStream(text string, emit func(word string, endPos int)) {
+    low := strings.ToLower(text)
+    n := len(low)
+    i := 0
+    for i &lt; n {
+        for i &lt; n &amp;&amp; !isWordByte(low[i]) { i++ }   // skip separators
+        if i &gt;= n { break }
+        j := i + 1
+        for j &lt; n &amp;&amp; isWordByte(low[j]) { j++ }     // consume the word
+        word := low[i:j]
+        if hasAlnum(word) { emit(word, j) }           // "…" or "-" alone: not a word
+        i = j
+    }
+}</code></pre>
+
+<h3>Splitting without cutting words in half</h3>
+<p>The master cuts documents into ~512 KiB chunks, but the cut point always slides forward
+to the next whitespace. Two adjacent chunks therefore never share or destroy a word:</p>
+
+<pre><code>// internal/master/scheduler.go
+func splitFileChunks(path string, chunkSize int64) []Chunk {
+    data, _ := os.ReadFile(path)
+    n := int64(len(data))
+    var chunks []Chunk
+    var start int64
+    for start &lt; n {
+        end := start + chunkSize
+        if end &gt;= n {
+            end = n
+        } else {
+            // never split inside a word: advance to the next whitespace
+            for end &lt; n &amp;&amp; !isSpaceByte(data[end]) { end++ }
+        }
+        chunks = append(chunks, Chunk{File: path, Offset: start, Length: end - start})
+        start = end
+    }
+    return chunks
+}</code></pre>
+
+<h3>Map: count, combine, partition — all local</h3>
+<p>One map task is a pure function from bytes to R files. Notice there is no locking, no
+cluster awareness, nothing distributed in here — the difficulty of distribution lives
+elsewhere, which is exactly the point of MapReduce:</p>
+
+<pre><code>// internal/worker/tasks.go (executeMap, slightly trimmed)
+counts := make(map[string]int64, 1&lt;&lt;14)          // the combiner's tally sheet
+common.TokenizeStream(string(input), func(word string, endPos int) {
+    counts[word]++
+    if endPos-lastPos &gt;= 32768 {                   // live progress for the dashboards
+        w.updateSlotProgress(idx, float64(endPos)/float64(total), tokens, "scan …")
+    }
+})
+parts := make([]map[string]int64, R)              // R hash-partitioned mini tallies
+for word, c := range counts {
+    p := common.PartitionOf(word, R)              // fnv32a(word) % R
+    if parts[p] == nil { parts[p] = make(map[string]int64) }
+    parts[p][word] += c
+}
+for p := 0; p &lt; R; p++ {                          // one gzipped JSON file per partition
+    sizes[p], _ = common.WriteGzJSON(w.mapFilePath(a.TaskID, p), parts[p])
+}</code></pre>
+
+<h3>The scheduler: one mutex, no cleverness</h3>
+<p>The master’s entire cluster state — workers, tasks, phases, progress — sits behind a
+single <code>sync.Mutex</code>. Handlers are tiny, transitions are plain functions called
+at well-defined moments, and the lock is never held across I/O. For a system of this scale
+that beats any lock-free wizardry: it is trivially correct to reason about, and the
+race-detector agrees (the test suite runs with <code>-race</code>):</p>
+
+<pre><code>// internal/master/scheduler.go (NextTask — the entire scheduling hot path)
+func (m *Master) NextTask(workerID string) common.TaskAssignment {
+    m.mu.Lock()
+    defer m.mu.Unlock()
+    if _, ok := m.workers[workerID]; !ok { return …none }
+    if m.job == nil { return …none }
+    switch m.job.Phase {
+    case common.PhaseMap:                          // hand out the next idle chunk
+        for _, t := range m.mapTasks {
+            if t.State == common.TaskIdle { return m.assignMapLocked(t, workerID) }
+        }
+    case common.PhaseShuffle, common.PhaseReduce:  // hand out the next partition
+        for _, t := range m.reduceTasks {
+            if t.State == common.TaskIdle { return m.assignReduceLocked(t, workerID) }
+        }
+    case common.PhaseDone, common.PhaseFailed:
+        return …shutdown                           // polite: tell workers to go home
+    }
+    return …none
+}</code></pre>
+
+<h3>Shuffling without a bottleneck</h3>
+<p>When the last map finishes, the master assembles each reduce task’s source list — the
+workers’ own addresses — and from then on the bytes flow peer-to-peer while the master only
+watches the scoreboard:</p>
+
+<pre><code>// reduce task assembly (master side)
+rt.Sources = append(rt.Sources, common.FileSource{
+    TaskID:   mt.ID,
+    WorkerID: mt.Holder,
+    URL:      fmt.Sprintf("http://%s/files/map/%s/%d", holder.FileAddr, mt.ID, rt.Partition),
+    Bytes:    mt.PartitionSizes[rt.Partition],
+})
+
+// the shuffle itself happens on the reduce worker (internal/worker/tasks.go)
+for i, src := range a.Sources {
+    w.updateSlotFetch(idx, i, total, fetchBytes, fmt.Sprintf("fetch %d/%d", i+1, total))
+    data, err := common.GetBytes(src.URL)          // straight from the peer, not the master
+    ...
+    for k, v := range m { result[k] += v }          // merge + sum in one pass
+}</code></pre>
+
+<h3>Drawing a terminal dashboard with zero libraries</h3>
+<p>The dashboard is a plain grid of styled runes (“cells”). Each frame the master builds a
+fresh canvas, writes boxes/bars/sparklines into it, and emits one ANSI string. Because the
+whole frame is rewritten with cursor-home + clear-to-end, there is no flicker and no
+diffing logic to get wrong:</p>
+
+<pre><code>// internal/termui/canvas.go — the entire rendering primitive
+func (c *Canvas) Bar(x, y, w int, frac float64, st, empty Style) {
+    filled := int(frac*float64(w) + 0.5)
+    for i := 0; i &lt; w; i++ {
+        if i &lt; filled { c.Set(x+i, y, '█', st) } else { c.Set(x+i, y, '░', empty) }
+    }
+}
+
+// the loop (master dashboard, 4 fps)
+ticker := time.NewTicker(250 * time.Millisecond)
+for {
+    select {
+    case &lt;-stop:  return
+    case &lt;-ticker.C:
+    }
+    w, h := termui.TerminalSize()               // ioctl TIOCGWINSZ
+    c := termui.NewCanvas(min(w, 120), h)
+    m.mu.Lock(); m.draw(c, frame); m.mu.Unlock() // snapshot under the state lock
+    fmt.Print(c.Render())                        // one string, one write
+    frame++
+}</code></pre>
+
+<div class="callout">
+  <div class="t">where to start reading, if you want the full tour</div>
+  <code>cmd/worker/main.go</code> → <code>internal/worker/worker.go</code> (SlotLoop) →
+  <code>internal/worker/tasks.go</code> (executeMap/executeReduce) →
+  <code>internal/master/scheduler.go</code> (TaskDone + phase transitions) →
+  <code>internal/master/merge.go</code> → finally the dashboards. That order follows the
+  life of one word through the system.
+</div>
+
+<!-- ======================= 9. RUN ======================= -->
+<h2 id="run"><span class="chip">9</span>Compile &amp; run it</h2>
+
+<p class="lead">You need Go 1.21 or newer — nothing else. No environment variables, no
+container, no message broker. Everything below assumes you are inside the project root
+(<code>cuteymr/</code>).</p>
+
+<h3>Build the four binaries</h3>
+<pre><code>cd cuteymr
+make build            # or: go build -o bin/ ./cmd/...
+
+# optional quality gates
+make vet              # go vet ./...
+make fmt              # gofmt -l -w .
+make race             # build with the race detector (what the tests use)</code></pre>
+
+<h3>Prepare data (or bring your own)</h3>
+<pre><code>make mock                                  # writes data/input/  (~3 MB, 10 files)
+bin/mr-mockgen --out data/input --scale 10 # a 30 MB stress corpus instead
+
+# your own texts work too — any plain-text files:
+bin/mr-master --input /path/to/your/docs …</code></pre>
+
+<h3>One machine, several terminals (the pretty way)</h3>
+<pre><code># terminal 1 — the master (waits for 3 workers, then auto-starts the job)
+bin/mr-master --port 8080 --workers 3 --input data/input --output data/output
+
+# terminal 2, 3, 4 — one worker each (file ports must differ on one machine)
+bin/mr-worker --master http://127.0.0.1:8080 --file-port 9101
+bin/mr-worker --master http://127.0.0.1:8080 --file-port 9102
+bin/mr-worker --master http://127.0.0.1:8080 --file-port 9103</code></pre>
+<p>Enjoy the dashboards. When the third worker connects the job starts by itself; when it
+finishes, the master parks on the DONE screen (top words included) until you press
+<span class="kbd">Ctrl+C</span>. The result waits in <code>data/output/</code>:</p>
+
+<pre><code>data/output/wordcount.json      # {"and":1,"ate":1,…} sorted keys
+data/output/wordcount.tsv       # count-desc rows: the&nbsp;83891  of&nbsp;42034 …
+data/output/top100.txt          # pretty bars for the top 100 words
+data/output/job-summary.json    # timings + per-worker stats</code></pre>
+
+<h3>One machine, fully automated (the testable way)</h3>
+<pre><code>make demo    # builds with -race, boots 3 headless workers, runs the job,
+             # then verifies the result against the sequential reference:
+             # PASS: wordcount.json matches the sequential reference exactly</code></pre>
+
+<h3>Flag reference</h3>
+<table>
+  <tr><th>binary</th><th>flag</th><th>default</th><th>meaning</th></tr>
+  <tr><td rowspan="7"><code>mr-master</code></td><td><code>--port</code></td><td>8080</td><td>control-plane listen port</td></tr>
+  <tr><td><code>--workers</code></td><td>2</td><td>job auto-starts when this many workers are connected</td></tr>
+  <tr><td><code>--input</code></td><td>data/input</td><td>file(s) or directory, comma-separated</td></tr>
+  <tr><td><code>--output</code></td><td>data/output</td><td>where the final result is stored</td></tr>
+  <tr><td><code>--chunk-size</code></td><td>512</td><td>map chunk size in KiB (always word-aligned)</td></tr>
+  <tr><td><code>--partitions</code> · <code>--heartbeat-timeout</code></td><td>0 · 10s</td><td>R override (0=auto 2×workers, min 4) · liveness deadline before a worker is declared dead (raise on WANs)</td></tr>
+  <tr><td><code>--headless</code> · <code>--exit-after-done</code></td><td>false · 0</td><td>no TUI, log lines · auto-exit after the job (for scripts)</td></tr>
+  <tr><td rowspan="5"><code>mr-worker</code></td><td><code>--master</code></td><td>http://127.0.0.1:8080</td><td>master address</td></tr>
+  <tr><td><code>--file-port</code></td><td>0</td><td>data-plane port (0 = pick a free one)</td></tr>
+  <tr><td><code>--advertise</code></td><td>auto</td><td>host/IP peers should use to reach this worker’s file server</td></tr>
+  <tr><td><code>--heartbeat</code></td><td>1s</td><td>how often to send heartbeats — raise on slow/WAN links together with the master’s <code>--heartbeat-timeout</code></td></tr>
+  <tr><td><code>--data-dir</code> · <code>--headless</code></td><td>temp · false</td><td>scratch space for intermediate files · no TUI</td></tr>
+</table>
+
+<!-- ======================= 10. MACHINES ======================= -->
+<h2 id="machines"><span class="chip">10</span>Running on real machines</h2>
+
+<p class="lead">Same two binaries, three machines, one LAN. The only thing that changes is
+that workers must advertise an address their peers can actually reach.</p>
+
+<figure>
+  <svg viewBox="0 0 960 320" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Three machines on one LAN switch: master plus two workers with IP addresses and ports">
+    <defs><marker id="arrL" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#9aa4b2"/></marker></defs>
+    <!-- switch -->
+    <rect x="380" y="230" width="200" height="46" rx="8" fill="#161b22" stroke="#c084fc"/>
+    <text x="480" y="250" font-size="13" fill="#c084fc" text-anchor="middle" font-weight="700">LAN SWITCH</text>
+    <text x="480" y="268" font-size="11" fill="#9aa4b2" text-anchor="middle">192.168.1.0/24</text>
+    <!-- machine 1 master -->
+    <g>
+      <rect x="60" y="60" width="250" height="130" rx="10" fill="rgba(57,208,195,.08)" stroke="#c084fc" stroke-width="2"/>
+      <text x="185" y="88" font-size="14" fill="#c084fc" text-anchor="middle" font-weight="700">machine A · 192.168.1.10</text>
+      <text x="185" y="112" font-size="12.5" fill="#c9d6e3" text-anchor="middle">bin/mr-master --port 8080 …</text>
+      <text x="185" y="134" font-size="11.5" fill="#9aa4b2" text-anchor="middle">control plane :8080 (TCP in)</text>
+      <text x="185" y="152" font-size="11.5" fill="#9aa4b2" text-anchor="middle">also serves input chunks</text>
+      <text x="185" y="174" font-size="11" fill="#f3b35b" text-anchor="middle">open port 8080 in the firewall</text>
+    </g>
+    <!-- machine 2 -->
+    <g>
+      <rect x="360" y="40" width="240" height="130" rx="10" fill="#161b22" stroke="#57d99a"/>
+      <text x="480" y="68" font-size="14" fill="#57d99a" text-anchor="middle" font-weight="700">machine B · 192.168.1.11</text>
+      <text x="480" y="92" font-size="12.5" fill="#c9d6e3" text-anchor="middle">bin/mr-worker \</text>
+      <text x="480" y="112" font-size="12" fill="#c9d6e3" text-anchor="middle">--master http://192.168.1.10:8080 \</text>
+      <text x="480" y="132" font-size="12" fill="#c9d6e3" text-anchor="middle">--file-port 9101 --advertise 192.168.1.11</text>
+      <text x="480" y="156" font-size="11" fill="#f3b35b" text-anchor="middle">open 9101 (peers fetch shuffle files)</text>
+    </g>
+    <!-- machine 3 -->
+    <g>
+      <rect x="650" y="60" width="250" height="130" rx="10" fill="#161b22" stroke="#57d99a"/>
+      <text x="775" y="88" font-size="14" fill="#57d99a" text-anchor="middle" font-weight="700">machine C · 192.168.1.12</text>
+      <text x="775" y="112" font-size="12.5" fill="#c9d6e3" text-anchor="middle">bin/mr-worker \</text>
+      <text x="775" y="132" font-size="12" fill="#c9d6e3" text-anchor="middle">--master http://192.168.1.10:8080 \</text>
+      <text x="775" y="152" font-size="12" fill="#c9d6e3" text-anchor="middle">--file-port 9101 --advertise 192.168.1.12</text>
+      <text x="775" y="174" font-size="11" fill="#f3b35b" text-anchor="middle">open 9101 (peers fetch shuffle files)</text>
+    </g>
+    <!-- cables -->
+    <path d="M185 190 C185 220 300 240 380 248" stroke="#9aa4b2" stroke-width="2" fill="none" marker-end="url(#arrL)"/>
+    <path d="M480 170 V226" stroke="#9aa4b2" stroke-width="2" fill="none" marker-end="url(#arrL)"/>
+    <path d="M775 190 C775 220 660 240 580 248" stroke="#9aa4b2" stroke-width="2" fill="none" marker-end="url(#arrL)"/>
+    <text x="480" y="306" font-size="12" fill="#9aa4b2" text-anchor="middle">copy the same binary to every machine — build once per OS/arch (see cross-compilation below)</text>
+  </svg>
+  <figcaption>Deployment on one LAN: one master, any number of workers. Only two ports per box need to be reachable.</figcaption>
+</figure>
+
+<h3>Step by step</h3>
+<pre><code># 0) build for each target OS once (Go makes this absurdly easy)
+GOOS=linux   GOARCH=amd64 go build -o dist/linux-amd64/ ./cmd/...    # any Linux box
+GOOS=darwin  GOARCH=arm64 go build -o dist/mac-arm64/ ./cmd/...      # Apple Silicon Macs
+GOOS=windows GOARCH=amd64 go build -o dist/win64/ ./cmd/...          # Windows (works, but
+                                                                      # use --headless: the ANSI
+                                                                      # dashboard wants a VT terminal)
+# 1) machine A (the master — put your input files here)
+./mr-master --port 8080 --workers 2 --input ~/books --output ~/results
+
+# 2) machine B
+./mr-worker --master http://192.168.1.10:8080 --file-port 9101 --advertise 192.168.1.11
+
+# 3) machine C
+./mr-worker --master http://192.168.1.10:8080 --file-port 9101 --advertise 192.168.1.12</code></pre>
+
+<div class="callout warn">
+  <div class="t">the two classic multi-machine gotchas</div>
+  <b>(1) Firewalls.</b> The master needs TCP <code>8080</code> reachable from every worker;
+  every worker needs its <code>--file-port</code> reachable from the other workers — the
+  shuffle is peer-to-peer. On Ubuntu: <code>sudo ufw allow from 192.168.1.0/24</code>.
+  <b>(2) Advertised addresses.</b> A worker tells the master “you can fetch my files at
+  <i>this</i> address”. Behind the same LAN that’s the machine’s LAN IP — pass
+  <code>--advertise</code> explicitly whenever auto-detection picks the wrong interface
+  (VPNs and Docker are the usual suspects). Symptoms of a wrong advertise address:
+  reduce tasks failing with “shuffle fetch … connection refused”.
+</div>
+
+<div class="callout">
+  <div class="t">sizing tips</div>
+  <span class="num">M</span> (map tasks) follows from <code>--chunk-size</code>; the sweet
+  spot is “several chunks per slot” so the fast never starve the many. <span class="num">R</span>
+  (reduce tasks) defaults to 2×workers — more partitions mean finer load balancing and
+  smaller merge units, at the cost of more (tiny) files during the shuffle. With the combiner
+  enabled the shuffle traffic for wordcount is usually <i>tiny</i> compared to the input.
+</div>
+
+<!-- ======================= 11. TESTED ======================= -->
+<h2 id="tested"><span class="chip">11</span>How it was tested</h2>
+
+<p class="lead">“It works” is a claim; here is the evidence. Every scenario below ends with
+the distributed result compared <b>word-for-word</b> against
+<code>mr-wcseq</code>, a sequential reference implementation that shares the exact same
+tokenizer (that shared-grammar trick is what makes equality checkable at all).</p>
+
+<table>
+  <tr><th>scenario</th><th>setup</th><th>result</th></tr>
+  <tr><td>happy path</td><td>3 workers (race-detector build), 3 MB / 10 files, 12 map + 6 reduce tasks</td><td><b>PASS</b> — 660.9k words exact</td></tr>
+  <tr><td>stress</td><td>3 workers, 30 MB corpus, 124 map + 12 reduce tasks</td><td><b>PASS</b> — 6.56M words exact, ~1.6 s</td></tr>
+  <tr><td>worker dies mid-map</td><td><code>kill -9</code> a worker 1.2 s into the job; heartbeat timeout re-queues its 9 in-flight tasks</td><td><b>PASS</b> — final result still exact</td></tr>
+  <tr><td>worker dies mid-shuffle</td><td>kill right after MAP completes; a reduce fetch fails, the master probes the dead peer instantly, rolls back to MAP and re-processes</td><td><b>PASS</b> — final result still exact</td></tr>
+  <tr><td>worker dies mid-reduce</td><td>kill after the shuffle drains, while reducers are summing — nothing is mid-fetch, so only the heartbeat timeout can notice; reduce tasks re-queue, MAP rolls back, already-finished partitions are kept</td><td><b>PASS</b> — 600.0k words exact, every run</td></tr>
+  <tr><td>edge inputs</td><td>empty file, 57-byte file, unicode/punctuation torture file, files larger than one chunk</td><td><b>PASS</b> — all counted exactly</td></tr>
+  <tr><td>dashboards</td><td>run under a real pty + <code>MR_SCREENSHOT</code> frame dumps; layout verified at 110×44</td><td>waiting / map / done frames all render correctly</td></tr>
+</table>
+
+<p>The mid-reduce kill is the trickiest window to hit — reduce sums can finish in milliseconds — so the test removes the race entirely: every worker runs with <code>--slow-reduce 900ms</code>, a fault-injection flag that holds each reduce task in-progress for a fixed while before its fetches. The window is then a guarantee, not a hope (<code>SLOW_REDUCE=0 make ftreduce</code> restores the pure timing version).</p>
+Reproduce any of it yourself:</p>
+<pre><code>make demo                                # scenario 1 (+ race detector)
+bash scripts/test_fault_tolerance.sh      # scenario 3 (generates the 30 MB corpus itself)
+bash scripts/test_shuffle_fault_tolerance.sh  # scenario 4 — the hardest path
+make ftreduce                            # scenario 5 — kill during REDUCE (deterministic)
+bash scripts/verify.sh                    # re-check data/output against the reference, any time
+curl localhost:8080/api/status            # machine-readable snapshot while a job runs</code></pre>
+
+<p>A flavor of the fault-tolerance transcript (from the real log):</p>
+<pre><code>19:43:29 worker w-lucky-koala-4b0d UNREACHABLE (heartbeat timeout) — re-queuing its tasks
+19:43:29 map m0000  FAILED on w-lucky-koala-4b0d (worker lost) — attempt 1
+19:43:29 map m0001  FAILED on w-lucky-koala-4b0d (worker lost) — attempt 1
+…
+19:43:33 MAP PHASE COMPLETE — 6.56M words across 124 chunks
+19:43:34 JOB COMPLETE in 9.2s — 6.56M total words · 338 unique
+PASS: wordcount.json matches the sequential reference exactly (6.56M total words)</code></pre>
+
+<!-- ======================= 12. GLOSSARY ======================= -->
+<h2 id="glossary"><span class="chip">12</span>Glossary &amp; FAQ</h2>
+
+<div class="cols">
+  <div>
+    <h3>glossary</h3>
+    <table>
+      <tr><th>term</th><th>meaning</th></tr>
+      <tr><td><b>job</b></td><td>one complete wordcount run, from split to stored result</td></tr>
+      <tr><td><b>chunk / split</b></td><td>one word-aligned slice of input, owned by one map task</td></tr>
+      <tr><td><b>map task</b></td><td>tokens one chunk → R partition files of <code>{word: count}</code></td></tr>
+      <tr><td><b>combiner</b></td><td>local pre-sum inside a map task; shrinks shuffle traffic</td></tr>
+      <tr><td><b>partition</b></td><td>basket number <code>fnv32a(word) mod R</code></td></tr>
+      <tr><td><b>shuffle</b></td><td>reducers pulling partition files from every mapper, peer-to-peer</td></tr>
+      <tr><td><b>reduce task</b></td><td>sums one partition across all mappers → <code>r-000r.json.gz</code></td></tr>
+      <tr><td><b>merge</b></td><td>master concatenates the R disjoint results into the final wordcount</td></tr>
+      <tr><td><b>slot</b></td><td>one goroutine on a worker = one task at a time (one per CPU core)</td></tr>
+      <tr><td><b>control plane</b></td><td>tiny JSON messages between workers and master</td></tr>
+      <tr><td><b>data plane</b></td><td>the bytes: input chunks, partition files, results</td></tr>
+    </table>
+  </div>
+  <div>
+    <h3>faq</h3>
+    <p><b>Why does a worker also run an HTTP server?</b><br>
+    That is the peer-to-peer data plane. Intermediate files stay on the machine that
+    produced them, and reducers fetch them directly — the master never relays bulk data,
+    so it cannot become a bottleneck.</p>
+    <p><b>What if I start the workers before the master?</b><br>
+    Fine. Workers retry registration every second until the master appears; the dashboard
+    says “master not reachable yet — retrying”.</p>
+    <p><b>Can a worker join after the job started?</b><br>
+    Yes — late joiners immediately participate via the pull model; the topology just grows.</p>
+    <p><b>What happens if the <i>master</i> dies?</b><br>
+    Workers give up after ~15 heartbeat intervals (never less than 10 s) and exit.
+    The job state lives only in the master (by
+    design, like the original paper) — restart the master and workers and the job re-runs
+    from scratch. Completed output files on disk are never touched.</p>
+    <p><b>Why is my job over before I can watch it?</b><br>
+    Small inputs on fast machines finish in under a second. Use
+    <code>mr-mockgen --scale 10</code>, shrink <code>--chunk-size</code> to create more
+    tasks, or simply enjoy the DONE screen — it stays until Ctrl+C.</p>
+    <p><b>How do I count words in PDFs/HTML?</b><br>
+    Extract plain text first (any tool you like), then feed the .txt files to the master.
+    MapReduce is a text pipeline by construction here.</p>
+  </div>
+</div>
+
+<div class="callout">
+  <div class="t">where to go next</div>
+  Ideas that fit the architecture naturally: a <b>sort</b> job (reduce emits sorted runs),
+  an <b>inverted index</b> (map emits word→docID), multi-job support on one cluster,
+  streaming heartbeats over WebSockets, or a web dashboard that renders
+  <code>/api/status</code>. The README in the archive mirrors this guide’s run commands.
+</div>
+
+<footer>
+  CuteyMR — MapReduce word counting in pure Go · illustrated guide ·
+  generated October 2025 · <a href="#top">back to top ↑</a>
+</footer>
+
+</div>
+</body>
+</html>
