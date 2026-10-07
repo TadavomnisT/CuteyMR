@@ -15,17 +15,18 @@ import (
 )
 
 // Palette (kept in sync with the master dashboard).
+// Standard 16 terminal colors only — see internal/master/dashboard.go.
 var (
-	wcolBorder = termui.Style{Fg: 240}
+	wcolBorder = termui.Style{Fg: 8}
 	wcolTitle  = termui.Style{Fg: 15, Bold: true}
-	wcolDim    = termui.Style{Fg: 245}
-	wcolText   = termui.Style{Fg: 250}
-	wcolGood   = termui.Style{Fg: 114}
-	wcolMap    = termui.Style{Fg: 114}
-	wcolReduce = termui.Style{Fg: 213}
-	wcolNet    = termui.Style{Fg: 80}
-	wcolYellow = termui.Style{Fg: 220}
-	wcolHot    = termui.Style{Fg: 196}
+	wcolDim    = termui.Style{Fg: 7}
+	wcolText   = termui.Style{Fg: 7}
+	wcolGood   = termui.Style{Fg: 10}
+	wcolMap    = termui.Style{Fg: 10}
+	wcolReduce = termui.Style{Fg: 13}
+	wcolNet    = termui.Style{Fg: 14}
+	wcolYellow = termui.Style{Fg: 11}
+	wcolHot    = termui.Style{Fg: 9}
 )
 
 // RunDashboard renders the worker terminal dashboard until ctx is done.
@@ -127,7 +128,7 @@ func (w *Worker) drawHeader(c *termui.Canvas, y, width int) int {
 	case common.PhaseMap:
 		dot = wcolMap
 	case common.PhaseShuffle:
-		dot = termui.Style{Fg: 171}
+		dot = termui.Style{Fg: 5}
 	case common.PhaseReduce:
 		dot = wcolReduce
 	case common.PhaseMerge:

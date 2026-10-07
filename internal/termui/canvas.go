@@ -2,8 +2,10 @@
 // Copyright (c) 2025 The CuteyMR Authors
 
 // Package termui is a tiny dependency-free terminal canvas renderer.
-// It draws unicode box art with 256 color ANSI escapes and supports a
-// plain (ANSI-free) mode used for screenshots and logs.
+// It draws unicode box art with ANSI escapes and supports a plain
+// (ANSI-free) mode used for screenshots and logs. Colors 0-15 are the
+// standard terminal palette, emitted with the classic 30-37/90-97 SGR
+// codes so every terminal renders them from its own built-in palette.
 package termui
 
 import (
@@ -29,10 +31,10 @@ func (s Style) seq() string {
 	}
 	var parts []string
 	if s.Fg >= 0 {
-		parts = append(parts, fmt.Sprintf("38;5;%d", s.Fg))
+		parts = append(parts, fgSeq(s.Fg))
 	}
 	if s.Bg >= 0 {
-		parts = append(parts, fmt.Sprintf("48;5;%d", s.Bg))
+		parts = append(parts, bgSeq(s.Bg))
 	}
 	if s.Bold {
 		parts = append(parts, "1")
@@ -41,6 +43,31 @@ func (s Style) seq() string {
 		parts = append(parts, "2")
 	}
 	return "\x1b[" + strings.Join(parts, ";") + "m"
+}
+
+// fgSeq encodes a foreground color. The standard 16 terminal colors use the
+// classic 30-37 / 90-97 SGR codes, so every terminal renders them from its
+// own built-in palette — no 256-color support required. Higher codes fall
+// back to the 256-color escape.
+func fgSeq(c int) string {
+	if c < 8 {
+		return fmt.Sprintf("%d", 30+c)
+	}
+	if c < 16 {
+		return fmt.Sprintf("%d", 90+c-8)
+	}
+	return fmt.Sprintf("38;5;%d", c)
+}
+
+// bgSeq is the background counterpart of fgSeq (40-47 / 100-107).
+func bgSeq(c int) string {
+	if c < 8 {
+		return fmt.Sprintf("%d", 40+c)
+	}
+	if c < 16 {
+		return fmt.Sprintf("%d", 100+c-8)
+	}
+	return fmt.Sprintf("48;5;%d", c)
 }
 
 // Cell is one character position on the canvas.

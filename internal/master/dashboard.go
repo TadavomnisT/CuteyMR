@@ -13,20 +13,22 @@ import (
 	"cuteymr/internal/termui"
 )
 
-// Palette (256 colors) — deliberately avoids blue/indigo tones.
+// Palette — the standard 16 terminal colors only, so any terminal (even
+// one without 256-color support) renders them from its own classic Linux
+// palette. No blue/indigo tones.
 var (
-	colBorder  = termui.Style{Fg: 240}
+	colBorder  = termui.Style{Fg: 8} // bright black: the classic gray border
 	colTitle   = termui.Style{Fg: 15, Bold: true}
-	colDim     = termui.Style{Fg: 245}
-	colText    = termui.Style{Fg: 250}
-	colGood    = termui.Style{Fg: 114} // soft green
-	colMap     = termui.Style{Fg: 114}
-	colReduce  = termui.Style{Fg: 213} // pink
-	colShuffle = termui.Style{Fg: 171} // magenta
-	colNet     = termui.Style{Fg: 80}  // teal
-	colYellow  = termui.Style{Fg: 220}
-	colHot     = termui.Style{Fg: 196} // red
-	colOrange  = termui.Style{Fg: 214}
+	colDim     = termui.Style{Fg: 7} // white: readable secondary text
+	colText    = termui.Style{Fg: 7}
+	colGood    = termui.Style{Fg: 10} // bright green
+	colMap     = termui.Style{Fg: 10}
+	colReduce  = termui.Style{Fg: 13} // bright magenta
+	colShuffle = termui.Style{Fg: 5}  // magenta
+	colNet     = termui.Style{Fg: 14} // bright cyan
+	colYellow  = termui.Style{Fg: 11}
+	colHot     = termui.Style{Fg: 9} // bright red
+	colOrange  = termui.Style{Fg: 3} // yellow: amber sparks
 )
 
 // RunDashboard renders the live terminal dashboard until stop is closed.
