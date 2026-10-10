@@ -22,6 +22,14 @@ plain HTTP+JSON — with **zero external dependencies** (Go standard library onl
 - **Live terminal dashboards** for master and every worker, including an animated cluster topology with moody worker faces `(>_<)`.
 - **Verified** — results are compared word-for-word against a sequential reference implementation (and it passes, including `kill -9` chaos tests).
 
+## Installation
+
+```bash
+git clone https://github.com/TadavomnisT/CuteyMR.git
+cd CuteyMR
+make build
+```
+
 ## Quick start
 
 ```bash
