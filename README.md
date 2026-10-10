@@ -1,5 +1,7 @@
 # CuteyMR — MapReduce WordCount in pure Go
 
+<img width="128" height="128" alt="logo" src="./docs/images/logo.png" /> CuteyMR :3
+
 A small but complete distributed **MapReduce** system that solves the classic
 **word count** problem: one **master**, any number of **workers**, talking over
 plain HTTP+JSON — with **zero external dependencies** (Go standard library only).
