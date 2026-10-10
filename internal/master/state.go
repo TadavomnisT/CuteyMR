@@ -148,6 +148,12 @@ type Master struct {
 
 	frame int64 // dashboard animation frame
 
+	// probeFails counts consecutive failed data-plane probe rounds per
+	// worker (reset on any probe success or re-registration). See
+	// probeWorker: it takes a stale heartbeat OR 3 straight failed rounds
+	// before a freshly-heartbeating worker is declared dead.
+	probeFails map[string]int
+
 	// aggregate shuffle progress (computed from heartbeats)
 	fetchDone  int
 	fetchTotal int
@@ -176,11 +182,12 @@ func New(cfg Config) *Master {
 		cfg.TargetWorkers = 1
 	}
 	m := &Master{
-		cfg:       cfg,
-		workers:   make(map[string]*WorkerInfo),
-		log:       common.NewEventLog(400),
-		doneCh:    make(chan struct{}),
-		startedAt: time.Now(),
+		cfg:        cfg,
+		workers:    make(map[string]*WorkerInfo),
+		probeFails: make(map[string]int),
+		log:        common.NewEventLog(400),
+		doneCh:     make(chan struct{}),
+		startedAt:  time.Now(),
 	}
 	return m
 }

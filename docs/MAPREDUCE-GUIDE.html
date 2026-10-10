@@ -651,9 +651,12 @@ so machines with more cores naturally take more work (they simply ask more often
   hash — no conflicts possible), sorts by count, and writes
   <code>wordcount.json</code>, <code>wordcount.tsv</code>, <code>top100.txt</code> and
   <code>job-summary.json</code> into the output directory.</li>
-  <li><b>Shutdown.</b> The next time workers ask for work they receive a
-  <code>shutdown</code> assignment; they print their personal summary and exit with a smile
-  <code>(^_^)/</code>.</li>
+  <li><b>After the job.</b> Workers are daemons: when they next ask for work they
+  receive a <code>shutdown</code> assignment — and simply idle, keeping their dashboards
+  and file servers up. They stay online <i>forever</i> (just like the master) until you
+  press <span class="kbd">Ctrl+C</span>; each one then prints its personal summary and bows
+  out with a smile <code>(^_^)/</code>. If you restart the master with a fresh job, idle
+  workers re-register automatically and get back to work.</li>
 </ol>
 
 <!-- ======================= 5. PROTOCOL ======================= -->
@@ -981,7 +984,7 @@ func (m *Master) NextTask(workerID string) common.TaskAssignment {
             if t.State == common.TaskIdle { return m.assignReduceLocked(t, workerID) }
         }
     case common.PhaseDone, common.PhaseFailed:
-        return …shutdown                           // polite: tell workers to go home
+        return …shutdown                           // polite: job over — workers idle until Ctrl+C
     }
     return …none
 }</code></pre>
@@ -1262,10 +1265,12 @@ PASS: wordcount.json matches the sequential reference exactly (6.56M total words
     <p><b>Can a worker join after the job started?</b><br>
     Yes — late joiners immediately participate via the pull model; the topology just grows.</p>
     <p><b>What happens if the <i>master</i> dies?</b><br>
-    Workers give up after ~15 heartbeat intervals (never less than 10 s) and exit.
-    The job state lives only in the master (by
-    design, like the original paper) — restart the master and workers and the job re-runs
-    from scratch. Completed output files on disk are never touched.</p>
+    Workers never give up: they keep retrying their heartbeats forever and re-register
+    the moment a master (e.g. a restarted one) answers, then join the new job. The job
+    state lives only in the master (by design, like the original paper) — restart the
+    master and the job re-runs from scratch. Completed output files on disk are never
+    touched. A worker process only ever stops when <i>you</i> stop it with
+    <span class="kbd">Ctrl+C</span>.</p>
     <p><b>Why is my job over before I can watch it?</b><br>
     Small inputs on fast machines finish in under a second. Use
     <code>mr-mockgen --scale 10</code>, shrink <code>--chunk-size</code> to create more

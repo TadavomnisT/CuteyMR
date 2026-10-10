@@ -162,27 +162,78 @@ type fetchResult struct {
 	err  error
 }
 
+// fetchPasses is how many times a reduce task re-tries failed shuffle
+// fetches (the initial pass plus retries) before giving up on the task.
+// Every individual fetch already retries internally with backoff; the extra
+// passes exist because a busy peer can still drop a connection during a
+// huge shuffle, and re-fetching a handful of files is far cheaper than
+// failing (and re-running) the entire reduce task.
+const fetchPasses = 3
+
 // fetchSources downloads every intermediate partition file for a reduce task,
 // up to maxFetchConcurrency at a time, and merges the decoded word counts.
-// It returns the merged map, the total bytes fetched, and — on failure — the
-// worker whose file could not be retrieved (the master probes that worker's
-// data plane before re-queuing work).
+// Sources that fail a pass are retried in later passes; only when files are
+// still missing after fetchPasses attempts does the task fail. It returns the
+// merged map, the total bytes fetched, and — on failure — the worker whose
+// file could not be retrieved (the master probes that worker's data plane
+// before re-queuing work).
 func (w *Worker) fetchSources(ctx context.Context, idx int, sources []common.FileSource) (
 	map[string]int64, int64, string, error) {
 
 	n := len(sources)
-	concurrency := maxFetchConcurrency
-	if concurrency > n {
-		concurrency = n
+	result := make(map[string]int64, 1<<15)
+	var (
+		fetchBytes int64
+		done       int
+	)
+	pending := sources
+	var last passResult
+	for pass := 0; pass < fetchPasses && len(pending) > 0; pass++ {
+		if pass > 0 {
+			w.log.Push("slot %d: retrying %d/%d shuffle sources (pass %d of %d)",
+				idx, len(pending), n, pass+1, fetchPasses)
+		}
+		last = w.fetchPass(ctx, idx, pending, result, done, n, fetchBytes)
+		fetchBytes = last.fetchBytes
+		done = last.done
+		if ctx.Err() != nil {
+			// our own shutdown, not a peer's fault — nothing to probe
+			return result, fetchBytes, "", ctx.Err()
+		}
+		pending = last.failed
 	}
+	if len(pending) > 0 {
+		return result, fetchBytes, last.failedSrc, last.err
+	}
+	return result, fetchBytes, "", nil
+}
 
-	fctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+// passResult summarizes one fetch pass.
+type passResult struct {
+	failed     []common.FileSource
+	fetchBytes int64
+	done       int
+	err        error
+	failedSrc  string
+}
 
-	// Every goroutine sends exactly one result into a buffered channel of
-	// capacity n, so no sender ever blocks and all of them are guaranteed
-	// to exit once the channel is drained.
-	results := make(chan fetchResult, n)
+// fetchPass concurrently fetches one pass of sources (up to
+// maxFetchConcurrency at a time), merging every successful file into acc and
+// returning the sources that failed this pass. A failing fetch does not
+// abort the pass: collecting the complete failure set lets the next pass
+// retry exactly what is missing instead of re-fetching everything.
+//
+// Every goroutine sends exactly one result into a buffered channel of
+// capacity len(sources), so no sender ever blocks and all of them are
+// guaranteed to exit once the channel is drained.
+func (w *Worker) fetchPass(ctx context.Context, idx int, sources []common.FileSource, acc map[string]int64,
+	done, total int, fetchBytes int64) passResult {
+
+	concurrency := maxFetchConcurrency
+	if concurrency > len(sources) {
+		concurrency = len(sources)
+	}
+	results := make(chan fetchResult, len(sources))
 	sem := make(chan struct{}, concurrency)
 	var wg sync.WaitGroup
 	for i := range sources {
@@ -191,12 +242,12 @@ func (w *Worker) fetchSources(ctx context.Context, idx int, sources []common.Fil
 			defer wg.Done()
 			select {
 			case sem <- struct{}{}:
-			case <-fctx.Done():
-				results <- fetchResult{src: src, err: fctx.Err()}
+			case <-ctx.Done():
+				results <- fetchResult{src: src, err: ctx.Err()}
 				return
 			}
 			defer func() { <-sem }()
-			data, err := common.GetBytesCtx(fctx, src.URL)
+			data, err := common.GetBytesCtx(ctx, src.URL)
 			results <- fetchResult{src: src, data: data, err: err}
 		}(sources[i])
 	}
@@ -205,44 +256,39 @@ func (w *Worker) fetchSources(ctx context.Context, idx int, sources []common.Fil
 		close(results)
 	}()
 
-	result := make(map[string]int64, 1<<15)
-	var (
-		fetchBytes int64
-		done       int
-		firstErr   error
-		failedSrc  string
-	)
+	var out passResult
+	out.fetchBytes = fetchBytes
+	out.done = done
 	for r := range results {
 		if r.err != nil {
-			if firstErr == nil {
+			if out.err == nil {
 				if errors.Is(r.err, context.Canceled) && ctx.Err() != nil {
-					// our own shutdown, not the peer's fault
-					firstErr = r.err
+					out.err = r.err // our own shutdown, not the peer's fault
 				} else {
-					firstErr = fmt.Errorf("shuffle fetch from %s: %v", r.src.WorkerID, r.err)
-					failedSrc = r.src.WorkerID
-					cancel() // stop starting new fetches
+					out.err = fmt.Errorf("shuffle fetch from %s: %v", r.src.WorkerID, r.err)
+					out.failedSrc = r.src.WorkerID
 				}
 			}
+			out.failed = append(out.failed, r.src)
 			continue
 		}
-		if firstErr == nil {
-			var m map[string]int64
-			if err := common.ReadGzJSON(r.data, &m); err != nil {
-				firstErr = fmt.Errorf("corrupt intermediate file %s: %v", r.src.TaskID, err)
-				failedSrc = r.src.WorkerID
-				cancel()
-				continue
+		var m map[string]int64
+		if err := common.ReadGzJSON(r.data, &m); err != nil {
+			if out.err == nil {
+				out.err = fmt.Errorf("corrupt intermediate file %s: %v", r.src.TaskID, err)
+				out.failedSrc = r.src.WorkerID
 			}
-			for k, v := range m {
-				result[k] += v
-			}
-			fetchBytes += int64(len(r.data))
-			done++
-			w.updateSlotFetch(idx, done, n, fetchBytes, fmt.Sprintf("fetch %d/%d", done, n))
+			out.failed = append(out.failed, r.src)
+			continue
 		}
+		for k, v := range m {
+			acc[k] += v
+		}
+		out.fetchBytes += int64(len(r.data))
+		out.done++
+		w.updateSlotFetch(idx, out.done, total, out.fetchBytes, fmt.Sprintf("fetch %d/%d", out.done, total))
 	}
-	return result, fetchBytes, failedSrc, firstErr
+	return out
 }
 
 // executeReduce runs one reduce task: fetch all intermediate partition files

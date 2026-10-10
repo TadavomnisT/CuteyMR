@@ -1,0 +1,37 @@
+<svg viewBox="0 0 960 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Reduce: each partition is summed and the master merges results" font-family="ui-monospace,Menlo,Consolas,monospace">
+    <rect x="0" y="0" width="960" height="250" fill="#161b22"/>
+    <defs><marker id="arr4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#9aa4b2"/></marker></defs>
+    <g font-size="12.5">
+      <rect x="40" y="30" width="230" height="80" rx="8" fill="rgba(57,208,195,.08)" stroke="#c084fc"/>
+      <text x="56" y="54" fill="#c084fc" font-weight="700">reduce r0000 (partition 0)</text>
+      <text x="56" y="76" fill="#9aa4b2">fetches M files “part-0000”</text>
+      <text x="56" y="98" fill="#c9d6e3">big: 1+0+0+… → big = 1</text>
+      <rect x="40" y="130" width="230" height="80" rx="8" fill="rgba(232,121,249,.08)" stroke="#e879f9"/>
+      <text x="56" y="154" fill="#e879f9" font-weight="700">reduce r0001 (partition 1)</text>
+      <text x="56" y="176" fill="#9aa4b2">fetches M files “part-0001”</text>
+      <text x="56" y="198" fill="#c9d6e3">the: 4+0+0+… → the = 4</text>
+      <rect x="40" y="230" width="0" height="0"/>
+    </g>
+    <g font-size="12.5">
+      <rect x="340" y="130" width="230" height="80" rx="8" fill="rgba(243,179,91,.08)" stroke="#f3b35b"/>
+      <text x="356" y="154" fill="#f3b35b" font-weight="700">reduce r0002 (partition 2)</text>
+      <text x="356" y="176" fill="#9aa4b2">fetches M files “part-0002”</text>
+      <text x="356" y="198" fill="#c9d6e3">on, mat, and, cat, fish = 1 each</text>
+    </g>
+    <path d="M280 70 C340 70 360 130 400 150" stroke="#9aa4b2" stroke-width="2" fill="none" marker-end="url(#arr4)"/>
+    <path d="M280 170 H330" stroke="#9aa4b2" stroke-width="2" fill="none" marker-end="url(#arr4)"/>
+    <path d="M580 170 C660 170 680 140 720 120" stroke="#9aa4b2" stroke-width="2" fill="none" marker-end="url(#arr4)"/>
+    <g>
+      <rect x="620" y="30" width="330" height="80" rx="10" fill="rgba(87,217,154,.09)" stroke="#57d99a"/>
+      <text x="640" y="58" font-size="14" fill="#57d99a" font-weight="700">MASTER MERGE</text>
+      <text x="640" y="82" font-size="12.5" fill="#c9d6e3">the 4 · and 1 · ate 1 · big 1 · cat 1</text>
+      <text x="640" y="100" font-size="12.5" fill="#c9d6e3">dog 1 · fish 1 · mat 1 · on 1 · sat 1</text>
+    </g>
+    <g>
+      <rect x="620" y="130" width="330" height="80" rx="10" fill="#161b22" stroke="#30363d"/>
+      <text x="640" y="158" font-size="13" fill="#c084fc" font-weight="700">wordcount.tsv (top of file)</text>
+      <text x="640" y="182" font-size="12.5" fill="#c9d6e3">the    4</text>
+      <text x="640" y="200" font-size="12.5" fill="#c9d6e3">and    1   ate   1   big   1  …</text>
+    </g>
+    <path d="M785 110 V126" stroke="#9aa4b2" stroke-width="2" marker-end="url(#arr4)"/>
+  </svg>

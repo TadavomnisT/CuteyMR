@@ -68,6 +68,13 @@ type workerStats struct {
 }
 
 // Worker is one worker process.
+//
+// Lifetime contract: a worker is a daemon. It stays online forever — through
+// job completions, job failures and master outages alike — and only exits
+// when the operator interrupts it (Ctrl+C / SIGTERM), exactly like the
+// master. If the master goes away the worker keeps retrying its heartbeat
+// and re-registers the moment a master answers, joining whatever new job
+// that master starts.
 type Worker struct {
 	cfg Config
 	ID  string
@@ -83,6 +90,7 @@ type Worker struct {
 		ClusterRate  float64
 		Updated      time.Time
 	}
+	jobDone bool // master reported the job finished/failed — idle until Ctrl+C
 
 	log            *common.EventLog
 	dataDir        string
@@ -253,7 +261,8 @@ func (w *Worker) Register(ctx context.Context) error {
 }
 
 // Run starts heartbeat, slot and dashboard loops and blocks until the worker
-// is asked to stop (signal, master shutdown, or master loss).
+// is interrupted (Ctrl+C / SIGTERM). The worker never stops on its own: job
+// completion and master loss both just transition it to an idle/retry state.
 func (w *Worker) Run() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -297,16 +306,21 @@ func (w *Worker) Run() {
 }
 
 // HeartbeatLoop periodically reports liveness and live stats to the master.
-// If the master stays unreachable for ~15 heartbeat intervals (never less
-// than 10s — PostJSON retries can stall a tick for much longer than the
-// interval itself), the worker gives up and exits.
+//
+// It never gives up: if the master is unreachable (it may be restarting, or
+// the operator Ctrl+C'd it) the loop keeps retrying and logs a calm warning
+// every ~10 s instead of exiting. When a master finally answers with "unknown
+// worker" the worker re-registers — with unlimited retries — so a restarted
+// master's next job is picked up automatically. When the master reports the
+// job finished (or failed) the worker marks itself done and idles, but keeps
+// heartbeating so the master's dashboard keeps showing a live cluster.
 func (w *Worker) HeartbeatLoop(ctx context.Context) {
 	interval := w.cfg.HeartbeatInterval
-	giveUpAfter := 15 * interval
-	if giveUpAfter < 10*time.Second {
-		giveUpAfter = 10 * time.Second
+	warnEvery := 10 * time.Second
+	if warnEvery < 3*interval {
+		warnEvery = 3 * interval
 	}
-	lastOK := time.Now()
+	var lastWarn time.Time
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
@@ -318,21 +332,18 @@ func (w *Worker) HeartbeatLoop(ctx context.Context) {
 		req := w.buildHeartbeat()
 		var resp common.HeartbeatResponse
 		err := common.PostJSONCtx(ctx, w.cfg.MasterURL+"/api/heartbeat", req, &resp)
-		if err == nil {
-			lastOK = time.Now()
-		}
-		w.mu.Lock()
 		if err != nil {
+			w.mu.Lock()
 			w.heartbeatFails++
-			giveUp := time.Since(lastOK) > giveUpAfter
 			w.mu.Unlock()
-			if giveUp {
-				w.log.Push("master unreachable for %s — exiting", time.Since(lastOK).Truncate(time.Second))
-				w.triggerShutdown()
-				return
+			if lastWarn.IsZero() || time.Since(lastWarn) >= warnEvery {
+				lastWarn = time.Now()
+				w.log.Push("master unreachable (%v) — staying online and retrying (Ctrl+C to exit)", err)
 			}
 			continue
 		}
+		lastWarn = time.Time{}
+		w.mu.Lock()
 		w.heartbeatFails = 0
 		w.cluster.Phase = resp.Phase
 		w.cluster.Alive = resp.AliveWorkers
@@ -345,16 +356,57 @@ func (w *Worker) HeartbeatLoop(ctx context.Context) {
 		w.mu.Unlock()
 		if unknown {
 			w.log.Push("master lost our registration — re-registering")
-			if err := w.Register(ctx); err != nil {
-				return
+			if err := w.reregister(ctx); err != nil {
+				return // only cancellation (Ctrl+C) ends the loop
 			}
 			continue
 		}
 		if shutdown {
-			w.triggerShutdown()
-			return
+			w.markJobDone()
 		}
 	}
+}
+
+// reregister keeps trying to (re-)register with the master until it is
+// accepted. Registration problems never stop a worker — the master may be
+// restarting or busy — so only context cancellation ends the retry loop.
+func (w *Worker) reregister(ctx context.Context) error {
+	delay := time.Second
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		err := w.Register(ctx)
+		if err == nil {
+			w.mu.Lock()
+			if w.jobDone {
+				w.jobDone = false // a live master accepted us: be ready for a new job
+			}
+			w.mu.Unlock()
+			return nil
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		w.log.Push("re-registration failed (%v) — retrying in %s", err, delay)
+		w.sleepCtx(ctx, delay)
+		if delay < 8*time.Second {
+			delay *= 2
+		}
+	}
+}
+
+// markJobDone switches the worker into its post-job idle state (once):
+// slots park in a slow poll instead of exiting, and the dashboard keeps
+// running. The process stays online until the operator interrupts it.
+func (w *Worker) markJobDone() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.jobDone {
+		return
+	}
+	w.jobDone = true
+	w.log.Push("job finished on the master — this worker stays online until Ctrl+C")
 }
 
 func (w *Worker) buildHeartbeat() common.HeartbeatRequest {
@@ -419,9 +471,12 @@ func (w *Worker) SlotLoop(ctx context.Context, idx int) {
 			w.mu.Unlock()
 			w.sleepCtx(ctx, idle+time.Duration(rand.Intn(150))*time.Millisecond)
 		case common.TaskShutdown:
-			w.log.Push("slot %d: master reports job finished — nothing more to do", idx)
-			w.triggerShutdown()
-			return
+			// The job is over (or failed) — but workers are daemons: park this
+			// slot in a slow poll instead of exiting, so the process stays
+			// online until Ctrl+C and instantly notices a new job if the master
+			// restarts (re-registration wakes the cluster back up).
+			w.markJobDone()
+			w.sleepCtx(ctx, 5*time.Second)
 		case common.TaskMap:
 			w.executeMap(ctx, idx, a)
 		case common.TaskReduce:

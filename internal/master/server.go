@@ -131,9 +131,23 @@ func (m *Master) handleTaskDone(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// probeWorker checks whether a worker's file server still responds and
-// declares it dead if not.
+// probeWorker checks whether a worker's file server still responds before
+// the master trusts a reduce task's complaint that a fetch failed.
+//
+// False positives here are extremely expensive — declaring a live worker
+// dead re-queues every task it ever touched and rolls completed map work
+// back, which on large jobs cascades into task-attempt exhaustion and a
+// failed job. A worker serving thousands of shuffle fetches can easily miss
+// one hasty probe, so the master retries, and only declares death when the
+// worker's heartbeat is stale too — or when its data plane has failed
+// several consecutive probe rounds (a truly wedged server). Congestion on a
+// live worker is NOT death: the reduce task is simply re-queued and retried.
 func (m *Master) probeWorker(id string) {
+	const (
+		attempts   = 3
+		probeTO    = 2 * time.Second
+		probePause = 500 * time.Millisecond
+	)
 	m.mu.Lock()
 	w := m.workers[id]
 	if w == nil || !w.Alive {
@@ -143,15 +157,39 @@ func (m *Master) probeWorker(id string) {
 	addr := w.FileAddr
 	m.mu.Unlock()
 
-	client := &http.Client{Timeout: 3 * time.Second}
-	resp, err := client.Get("http://" + addr + "/")
-	if err == nil {
-		io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
-		return // data plane healthy — the fetch failure was transient
+	client := &http.Client{Timeout: probeTO}
+	for i := 0; i < attempts; i++ {
+		resp, err := client.Get("http://" + addr + "/")
+		if err == nil {
+			io.Copy(io.Discard, resp.Body)
+			resp.Body.Close()
+			m.mu.Lock()
+			delete(m.probeFails, id) // data plane healthy again
+			m.mu.Unlock()
+			return
+		}
+		time.Sleep(probePause)
+	}
+
+	// Every probe attempt failed. Weigh the control plane before judging.
+	m.mu.Lock()
+	w = m.workers[id]
+	if w == nil || !w.Alive {
+		m.mu.Unlock()
+		return // already failed via heartbeat timeout in the meantime
+	}
+	m.probeFails[id]++
+	streak := m.probeFails[id]
+	fresh := time.Since(w.LastSeen) < m.cfg.WorkerTimeout
+	m.mu.Unlock()
+
+	if fresh && streak < 3 {
+		m.log.Push("worker %s data-plane probe failed %dx but heartbeats are fresh — treating as congestion, not death (reduce task will retry)",
+			id, attempts)
+		return
 	}
 	m.mu.Lock()
-	m.failWorkerLocked(id, "data-plane probe failed: "+err.Error())
+	m.failWorkerLocked(id, fmt.Sprintf("data-plane unreachable (%d probes failed)", attempts))
 	m.mu.Unlock()
 }
 

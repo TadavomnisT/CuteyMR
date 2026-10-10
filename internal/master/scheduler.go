@@ -171,6 +171,7 @@ func (m *Master) Register(req common.RegisterRequest) common.RegisterResponse {
 	}
 	m.workers[req.WorkerID] = w
 	m.order = append(m.order, req.WorkerID)
+	delete(m.probeFails, req.WorkerID) // fresh start for a (re-)joining worker
 	alive := m.aliveCountLocked()
 	m.log.Push("worker %s joined — %d cores, %s RAM, file server %s", req.WorkerID, req.Cores,
 		common.HumanBytes(req.MemoryMB<<20), fileAddr)
@@ -611,10 +612,24 @@ func (m *Master) failMapTaskLocked(t *MapTask, workerID, errMsg string) {
 	// work: roll the job back to the map phase so the chunk is re-processed.
 	if wasCompleted && m.job != nil &&
 		(m.job.Phase == common.PhaseShuffle || m.job.Phase == common.PhaseReduce) {
+		requeued := 0
 		for _, rt := range m.reduceTasks {
 			if rt.State == common.TaskIdle {
+				rt.Sources = nil // stale source lists: rebuild at the next shuffle
+			} else if rt.State == common.TaskInProgress {
+				// In-flight reduce tasks are still grinding through the OLD
+				// generation of sources; re-queue them (without counting a
+				// failure — this is not their fault) so the next shuffle
+				// rebuilds their source lists from the re-processed chunks.
+				// Their workers' late reports are safely rejected as stale.
+				rt.State = common.TaskIdle
+				rt.AssignedTo = ""
 				rt.Sources = nil
+				requeued++
 			}
+		}
+		if requeued > 0 {
+			m.log.Push("rollback: re-queued %d in-flight reduce task(s) with stale sources", requeued)
 		}
 		m.job.Phase = common.PhaseMap
 		// reset phase clocks so post-rollback timings reflect the new pass

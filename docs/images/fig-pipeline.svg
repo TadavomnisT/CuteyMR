@@ -1,0 +1,42 @@
+<svg viewBox="0 0 960 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Pipeline: input documents, split, map workers, shuffle, reduce workers, final result" font-family="ui-monospace,Menlo,Consolas,monospace">
+    <rect x="0" y="0" width="960" height="300" fill="#161b22"/>
+    <defs>
+      <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0 0L10 5L0 10z" fill="#9aa4b2"/>
+      </marker>
+      <linearGradient id="mapg" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#c084fc" stop-opacity=".25"/><stop offset="1" stop-color="#c084fc" stop-opacity=".05"/>
+      </linearGradient>
+    </defs>
+    <rect x="10" y="64" width="150" height="150" rx="10" fill="url(#mapg)" stroke="#c084fc"/>
+    <text x="85" y="96" font-size="14" fill="#c084fc" text-anchor="middle" font-weight="700">INPUT</text>
+    <text x="85" y="120" font-size="11.5" fill="#9aa4b2" text-anchor="middle">documents</text>
+    <text x="85" y="136" font-size="11.5" fill="#9aa4b2" text-anchor="middle">books · logs · wikis</text>
+    <path d="M160 139 H196" stroke="#9aa4b2" stroke-width="2" marker-end="url(#arr2)"/>
+    <rect x="200" y="64" width="150" height="150" rx="10" fill="rgba(87,217,154,.09)" stroke="#57d99a"/>
+    <text x="275" y="96" font-size="14" fill="#57d99a" text-anchor="middle" font-weight="700">SPLIT</text>
+    <text x="275" y="120" font-size="11.5" fill="#9aa4b2" text-anchor="middle">M chunks</text>
+    <text x="275" y="136" font-size="11.5" fill="#9aa4b2" text-anchor="middle">never cut a word</text>
+    <path d="M350 139 H386" stroke="#9aa4b2" stroke-width="2" marker-end="url(#arr2)"/>
+    <rect x="390" y="64" width="190" height="150" rx="10" fill="rgba(87,217,154,.09)" stroke="#57d99a"/>
+    <text x="485" y="96" font-size="14" fill="#57d99a" text-anchor="middle" font-weight="700">MAP (parallel)</text>
+    <text x="485" y="120" font-size="11.5" fill="#9aa4b2" text-anchor="middle">emit (word, 1)</text>
+    <text x="485" y="136" font-size="11.5" fill="#9aa4b2" text-anchor="middle">+ local pre-sum (combiner)</text>
+    <text x="485" y="152" font-size="11.5" fill="#9aa4b2" text-anchor="middle">R partition files each</text>
+    <path d="M580 139 H616" stroke="#9aa4b2" stroke-width="2" marker-end="url(#arr2)"/>
+    <rect x="620" y="64" width="160" height="150" rx="10" fill="rgba(232,121,249,.08)" stroke="#e879f9"/>
+    <text x="700" y="96" font-size="14" fill="#e879f9" text-anchor="middle" font-weight="700">SHUFFLE</text>
+    <text x="700" y="120" font-size="11.5" fill="#9aa4b2" text-anchor="middle">hash(word) mod R</text>
+    <text x="700" y="136" font-size="11.5" fill="#9aa4b2" text-anchor="middle">same word → same</text>
+    <text x="700" y="152" font-size="11.5" fill="#9aa4b2" text-anchor="middle">reduce worker, always</text>
+    <path d="M780 139 H816" stroke="#9aa4b2" stroke-width="2" marker-end="url(#arr2)"/>
+    <rect x="820" y="64" width="130" height="150" rx="10" fill="rgba(232,121,249,.08)" stroke="#e879f9"/>
+    <text x="885" y="96" font-size="14" fill="#e879f9" text-anchor="middle" font-weight="700">REDUCE</text>
+    <text x="885" y="120" font-size="11.5" fill="#9aa4b2" text-anchor="middle">sum counts</text>
+    <text x="885" y="136" font-size="11.5" fill="#9aa4b2" text-anchor="middle">per partition</text>
+    <text x="885" y="152" font-size="11.5" fill="#9aa4b2" text-anchor="middle">R tasks, parallel</text>
+    <path d="M885 214 V244" stroke="#9aa4b2" stroke-width="2" marker-end="url(#arr2)"/>
+    <rect x="620" y="248" width="330" height="40" rx="8" fill="rgba(87,217,154,.09)" stroke="#57d99a"/>
+    <text x="785" y="273" font-size="13" fill="#57d99a" text-anchor="middle" font-weight="700">MERGE → master stores the result</text>
+    <text x="430" y="273" font-size="12.5" fill="#9aa4b2" text-anchor="middle">the master only moves <tspan fill="#c084fc">instructions</tspan>, never data</text>
+  </svg>

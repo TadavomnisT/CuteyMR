@@ -1,0 +1,96 @@
+<svg viewBox="0 0 960 560" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="CuteyMR architecture: master with control plane to workers, workers with peer-to-peer data plane" font-family="ui-monospace,Menlo,Consolas,monospace">
+    <rect x="0" y="0" width="960" height="560" fill="#161b22"/>
+    <defs>
+      <marker id="arrA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#c084fc"/></marker>
+      <marker id="arrB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#f3b35b"/></marker>
+      <marker id="arrC" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#9aa4b2"/></marker>
+    </defs>
+    <!-- control plane band -->
+    <rect x="20" y="18" width="920" height="150" rx="12" fill="rgba(57,208,195,.05)" stroke="#c084fc" stroke-dasharray="6 5"/>
+    <text x="40" y="44" font-size="13" fill="#c084fc" font-weight="700">CONTROL PLANE — HTTP + JSON (tiny messages: instructions, heartbeats, progress)</text>
+    <!-- master -->
+    <rect x="380" y="60" width="200" height="86" rx="10" fill="rgba(57,208,195,.12)" stroke="#c084fc" stroke-width="2"/>
+    <text x="480" y="88" font-size="15" fill="#c084fc" text-anchor="middle" font-weight="700">♛ MASTER :8080</text>
+    <text x="480" y="108" font-size="11.5" fill="#c9d6e3" text-anchor="middle">scheduler · phases · merge</text>
+    <text x="480" y="126" font-size="11.5" fill="#c9d6e3" text-anchor="middle">/api/register · /heartbeat</text>
+    <text x="480" y="140" font-size="11.5" fill="#c9d6e3" text-anchor="middle">/task/next · /task/done · /status</text>
+    <!-- workers on control plane -->
+    <g>
+      <rect x="60" y="66" width="170" height="74" rx="10" fill="#161b22" stroke="#57d99a"/>
+      <text x="145" y="92" font-size="13" fill="#57d99a" text-anchor="middle" font-weight="700">worker w-alpha</text>
+      <text x="145" y="112" font-size="11" fill="#9aa4b2" text-anchor="middle">2 cores → 2 slot goroutines</text>
+      <text x="145" y="128" font-size="11" fill="#9aa4b2" text-anchor="middle">pulls work, reports done</text>
+      <rect x="730" y="66" width="170" height="74" rx="10" fill="#161b22" stroke="#57d99a"/>
+      <text x="815" y="92" font-size="13" fill="#57d99a" text-anchor="middle" font-weight="700">worker w-beta</text>
+      <text x="815" y="112" font-size="11" fill="#9aa4b2" text-anchor="middle">8 cores → 8 slot goroutines</text>
+      <text x="815" y="128" font-size="11" fill="#9aa4b2" text-anchor="middle">pulls work, reports done</text>
+      <rect x="395" y="200" width="170" height="74" rx="10" fill="#161b22" stroke="#57d99a"/>
+      <text x="480" y="226" font-size="13" fill="#57d99a" text-anchor="middle" font-weight="700">worker w-gamma</text>
+      <text x="480" y="246" font-size="11" fill="#9aa4b2" text-anchor="middle">4 cores → 4 slot goroutines</text>
+      <text x="480" y="262" font-size="11" fill="#9aa4b2" text-anchor="middle">file server :910x</text>
+    </g>
+    <!-- control arrows -->
+    <path d="M240 100 C300 100 320 96 376 96" stroke="#c084fc" stroke-width="2" fill="none" marker-end="url(#arrA)"/>
+    <path d="M380 126 C320 126 300 122 236 122" stroke="#c084fc" stroke-width="2" fill="none" marker-dasharray="4 4" marker-end="url(#arrA)"/>
+    <path d="M726 100 C660 100 640 96 586 96" stroke="#c084fc" stroke-width="2" fill="none" marker-end="url(#arrA)"/>
+    <path d="M580 126 C640 126 660 122 724 122" stroke="#c084fc" stroke-width="2" fill="none" stroke-dasharray="4 4" marker-end="url(#arrA)"/>
+    <text x="252" y="88" font-size="10.5" fill="#c084fc">register+heartbeat</text>
+    <text x="596" y="88" font-size="10.5" fill="#c084fc">register+heartbeat</text>
+    <text x="252" y="140" font-size="10.5" fill="#c084fc">task assignments</text>
+    <text x="596" y="140" font-size="10.5" fill="#c084fc">task reports</text>
+    <!-- data plane band -->
+    <rect x="20" y="185" width="920" height="300" rx="12" fill="rgba(243,179,91,.05)" stroke="#f3b35b" stroke-dasharray="6 5"/>
+    <text x="40" y="211" font-size="13" fill="#f3b35b" font-weight="700">DATA PLANE — peer-to-peer HTTP (the actual bytes: input chunks, partition files, results)</text>
+    <!-- input -->
+    <g>
+      <rect x="60" y="240" width="170" height="90" rx="10" fill="#161b22" stroke="#c084fc"/>
+      <text x="145" y="266" font-size="12.5" fill="#c084fc" text-anchor="middle" font-weight="700">INPUT FILES</text>
+      <text x="145" y="286" font-size="11" fill="#9aa4b2" text-anchor="middle">master serves chunks at</text>
+      <text x="145" y="302" font-size="11" fill="#9aa4b2" text-anchor="middle">/api/input/m0042</text>
+      <text x="145" y="318" font-size="11" fill="#9aa4b2" text-anchor="middle">512 KiB · word-aligned</text>
+    </g>
+    <!-- map outputs on w-alpha -->
+    <g>
+      <rect x="300" y="330" width="200" height="64" rx="8" fill="rgba(87,217,154,.08)" stroke="#57d99a"/>
+      <text x="400" y="354" font-size="12" fill="#57d99a" text-anchor="middle" font-weight="700">w-alpha /tasks/m0042/</text>
+      <text x="400" y="374" font-size="11" fill="#c9d6e3" text-anchor="middle">part-0000 … part-000R .json.gz</text>
+    </g>
+    <!-- reduce fetch arrows P2P -->
+    <path d="M145 330 C160 420 280 450 380 452" stroke="#f3b35b" stroke-width="2" fill="none" marker-end="url(#arrB)"/>
+    <path d="M470 396 C500 420 520 430 560 438" stroke="#f3b35b" stroke-width="2" fill="none" marker-end="url(#arrB)"/>
+    <text x="200" y="440" font-size="11" fill="#f3b35b">during SHUFFLE: reduce workers fetch partition r</text>
+    <text x="200" y="456" font-size="11" fill="#f3b35b">files directly from every map worker — no master bottleneck</text>
+    <!-- reduce results -->
+    <g>
+      <rect x="560" y="420" width="340" height="50" rx="8" fill="rgba(232,121,249,.08)" stroke="#e879f9"/>
+      <text x="730" y="440" font-size="12" fill="#e879f9" text-anchor="middle" font-weight="700">reduce results r-0000 … r-000R .json.gz</text>
+      <text x="730" y="458" font-size="11" fill="#9aa4b2" text-anchor="middle">served by each worker at /files/reduce/r</text>
+    </g>
+    <path d="M815 416 V392 C815 340 700 320 596 300" stroke="#9aa4b2" stroke-width="2" fill="none" stroke-dasharray="3 4" marker-end="url(#arrC)"/>
+    <text x="612" y="390" font-size="11" fill="#9aa4b2">master downloads results during MERGE</text>
+    <!-- final output -->
+    <g>
+      <rect x="620" y="240" width="280" height="90" rx="10" fill="rgba(87,217,154,.09)" stroke="#57d99a"/>
+      <text x="760" y="266" font-size="12.5" fill="#57d99a" text-anchor="middle" font-weight="700">MASTER STORES THE RESULT</text>
+      <text x="760" y="288" font-size="11" fill="#c9d6e3" text-anchor="middle">wordcount.json · wordcount.tsv</text>
+      <text x="760" y="304" font-size="11" fill="#c9d6e3" text-anchor="middle">top100.txt · job-summary.json</text>
+      <text x="760" y="320" font-size="11" fill="#9aa4b2" text-anchor="middle">the master is the single source of truth</text>
+    </g>
+    <!-- phase strip -->
+    <g font-size="11.5">
+      <rect x="60" y="500" width="840" height="40" rx="8" fill="#161b22" stroke="#30363d"/>
+      <text x="84" y="525" fill="#9aa4b2">job phases:</text>
+      <text x="162" y="525" fill="#57d99a" font-weight="700">WAITING</text>
+      <text x="222" y="525" fill="#9aa4b2">→</text>
+      <text x="240" y="525" fill="#57d99a" font-weight="700">MAP</text>
+      <text x="282" y="525" fill="#9aa4b2">→</text>
+      <text x="300" y="525" fill="#e879f9" font-weight="700">SHUFFLE</text>
+      <text x="372" y="525" fill="#9aa4b2">→</text>
+      <text x="390" y="525" fill="#e879f9" font-weight="700">REDUCE</text>
+      <text x="462" y="525" fill="#9aa4b2">→</text>
+      <text x="480" y="525" fill="#f3b35b" font-weight="700">MERGE</text>
+      <text x="540" y="525" fill="#9aa4b2">→</text>
+      <text x="560" y="525" fill="#57d99a" font-weight="700">DONE</text>
+      <text x="620" y="525" fill="#9aa4b2">(any phase may roll back to MAP if a worker dies holding intermediate files)</text>
+    </g>
+  </svg>

@@ -1,0 +1,32 @@
+<svg viewBox="0 0 960 330" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Map phase: input line becomes 10 combined pairs" font-family="ui-monospace,Menlo,Consolas,monospace">
+    <rect x="0" y="0" width="960" height="330" fill="#161b22"/>
+  <defs>
+    <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#9aa4b2"/>
+    </marker>
+  </defs>
+
+    <rect x="30" y="60" width="420" height="70" rx="10" fill="rgba(57,208,195,.08)" stroke="#c084fc"/>
+    <text x="50" y="88" font-size="13" fill="#c084fc" font-weight="700">INPUT CHUNK (m0000)</text>
+    <text x="50" y="110" font-size="13.5" fill="#c9d6e3">"the big dog sat on the mat and the cat ate the fish"</text>
+    <path d="M240 130 V160" stroke="#9aa4b2" stroke-width="2" marker-end="url(#arr2)"/>
+    <g font-size="12.5">
+      <rect x="30" y="170" width="420" height="120" rx="10" fill="#161b22" stroke="#57d99a"/>
+      <text x="50" y="196" fill="#57d99a" font-weight="700">MAP + COMBINER — what the worker emits:</text>
+      <text x="50" y="222" fill="#c9d6e3">(the,4)&#160;&#160;(big,1)&#160;&#160;(dog,1)&#160;&#160;(sat,1)&#160;&#160;(on,1)</text>
+      <text x="50" y="244" fill="#c9d6e3">(mat,1)&#160;&#160;(and,1)&#160;&#160;(cat,1)&#160;&#160;(ate,1)&#160;&#160;(fish,1)</text>
+      <text x="50" y="274" fill="#9aa4b2" font-size="11.5">13 words in → only 10 pairs out. On real data this shrinks</text>
+      <text x="50" y="288" fill="#9aa4b2" font-size="11.5">network traffic by orders of magnitude.</text>
+    </g>
+    <path d="M460 230 H520" stroke="#9aa4b2" stroke-width="2" marker-end="url(#arr2)"/>
+    <g font-size="12.5">
+      <rect x="524" y="140" width="200" height="70" rx="8" fill="#1c2129" stroke="#57d99a"/>
+      <text x="540" y="168" fill="#c9d6e3">emit (the,1) ×4 …</text>
+      <text x="540" y="190" fill="#9aa4b2" font-size="11.5">“the naive way” — 13 pairs</text>
+      <rect x="524" y="230" width="200" height="70" rx="8" fill="rgba(87,217,154,.09)" stroke="#57d99a"/>
+      <text x="540" y="258" fill="#c9d6e3">emit (the,4) …</text>
+      <text x="540" y="280" fill="#9aa4b2" font-size="11.5">the combiner way — 10 pairs</text>
+    </g>
+    <text x="524" y="120" font-size="13" fill="#57d99a" font-weight="700">map is pure and local:</text>
+    <text x="524" y="106" font-size="12" fill="#9aa4b2">same input → same output, on any machine, any order</text>
+  </svg>

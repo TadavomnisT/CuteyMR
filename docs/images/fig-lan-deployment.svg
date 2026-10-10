@@ -1,0 +1,40 @@
+<svg viewBox="0 0 960 320" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Three machines on one LAN switch: master plus two workers with IP addresses and ports" font-family="ui-monospace,Menlo,Consolas,monospace">
+    <rect x="0" y="0" width="960" height="320" fill="#161b22"/>
+    <defs><marker id="arrL" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#9aa4b2"/></marker></defs>
+    <!-- switch -->
+    <rect x="380" y="230" width="200" height="46" rx="8" fill="#161b22" stroke="#c084fc"/>
+    <text x="480" y="250" font-size="13" fill="#c084fc" text-anchor="middle" font-weight="700">LAN SWITCH</text>
+    <text x="480" y="268" font-size="11" fill="#9aa4b2" text-anchor="middle">192.168.1.0/24</text>
+    <!-- machine 1 master -->
+    <g>
+      <rect x="60" y="60" width="250" height="130" rx="10" fill="rgba(57,208,195,.08)" stroke="#c084fc" stroke-width="2"/>
+      <text x="185" y="88" font-size="14" fill="#c084fc" text-anchor="middle" font-weight="700">machine A · 192.168.1.10</text>
+      <text x="185" y="112" font-size="12.5" fill="#c9d6e3" text-anchor="middle">bin/mr-master --port 8080 …</text>
+      <text x="185" y="134" font-size="11.5" fill="#9aa4b2" text-anchor="middle">control plane :8080 (TCP in)</text>
+      <text x="185" y="152" font-size="11.5" fill="#9aa4b2" text-anchor="middle">also serves input chunks</text>
+      <text x="185" y="174" font-size="11" fill="#f3b35b" text-anchor="middle">open port 8080 in the firewall</text>
+    </g>
+    <!-- machine 2 -->
+    <g>
+      <rect x="360" y="40" width="240" height="130" rx="10" fill="#161b22" stroke="#57d99a"/>
+      <text x="480" y="68" font-size="14" fill="#57d99a" text-anchor="middle" font-weight="700">machine B · 192.168.1.11</text>
+      <text x="480" y="92" font-size="12.5" fill="#c9d6e3" text-anchor="middle">bin/mr-worker \</text>
+      <text x="480" y="112" font-size="12" fill="#c9d6e3" text-anchor="middle">--master http://192.168.1.10:8080 \</text>
+      <text x="480" y="132" font-size="12" fill="#c9d6e3" text-anchor="middle">--file-port 9101 --advertise 192.168.1.11</text>
+      <text x="480" y="156" font-size="11" fill="#f3b35b" text-anchor="middle">open 9101 (peers fetch shuffle files)</text>
+    </g>
+    <!-- machine 3 -->
+    <g>
+      <rect x="650" y="60" width="250" height="130" rx="10" fill="#161b22" stroke="#57d99a"/>
+      <text x="775" y="88" font-size="14" fill="#57d99a" text-anchor="middle" font-weight="700">machine C · 192.168.1.12</text>
+      <text x="775" y="112" font-size="12.5" fill="#c9d6e3" text-anchor="middle">bin/mr-worker \</text>
+      <text x="775" y="132" font-size="12" fill="#c9d6e3" text-anchor="middle">--master http://192.168.1.10:8080 \</text>
+      <text x="775" y="152" font-size="12" fill="#c9d6e3" text-anchor="middle">--file-port 9101 --advertise 192.168.1.12</text>
+      <text x="775" y="174" font-size="11" fill="#f3b35b" text-anchor="middle">open 9101 (peers fetch shuffle files)</text>
+    </g>
+    <!-- cables -->
+    <path d="M185 190 C185 220 300 240 380 248" stroke="#9aa4b2" stroke-width="2" fill="none" marker-end="url(#arrL)"/>
+    <path d="M480 170 V226" stroke="#9aa4b2" stroke-width="2" fill="none" marker-end="url(#arrL)"/>
+    <path d="M775 190 C775 220 660 240 580 248" stroke="#9aa4b2" stroke-width="2" fill="none" marker-end="url(#arrL)"/>
+    <text x="480" y="306" font-size="12" fill="#9aa4b2" text-anchor="middle">copy the same binary to every machine — build once per OS/arch (see cross-compilation below)</text>
+  </svg>

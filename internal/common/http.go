@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"time"
 )
@@ -18,7 +19,28 @@ import (
 var ErrNoContent = errors.New("no content")
 
 // HTTPClient is the shared client used by master and workers.
-var HTTPClient = &http.Client{Timeout: 60 * time.Second}
+//
+// The tuned Transport matters more than it looks: Go's default transport
+// keeps only 2 idle connections per host, so a large shuffle (tens of
+// thousands of peer-to-peer partition fetches) churns through TCP
+// connections — each closed socket lingers in TIME_WAIT for ~60 s and the
+// ephemeral port range can run dry, after which dials start failing and even
+// heartbeats time out. A real per-host idle pool lets the shuffle reuse
+// connections instead of re-dialing for every file.
+var HTTPClient = &http.Client{
+	Timeout: 60 * time.Second,
+	Transport: &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout:   5 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		MaxIdleConns:          256,
+		MaxIdleConnsPerHost:   64,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	},
+}
 
 func backoff(attempt int) time.Duration {
 	d := time.Duration(150*(attempt+1)) * time.Millisecond

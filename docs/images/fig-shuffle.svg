@@ -1,0 +1,42 @@
+<svg viewBox="0 0 960 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Shuffle: pairs flow by hash into three partition files" font-family="ui-monospace,Menlo,Consolas,monospace">
+    <rect x="0" y="0" width="960" height="360" fill="#161b22"/>
+    <defs><marker id="arr3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#9aa4b2"/></marker></defs>
+    <g font-size="12.5">
+      <rect x="120" y="40" width="80" height="40" rx="6" fill="#1c2129" stroke="#57d99a"/><text x="132" y="65" fill="#c9d6e3">(the,4)</text>
+      <rect x="120" y="90" width="80" height="40" rx="6" fill="#1c2129" stroke="#57d99a"/><text x="132" y="115" fill="#c9d6e3">(big,1)</text>
+      <rect x="120" y="140" width="80" height="40" rx="6" fill="#1c2129" stroke="#57d99a"/><text x="132" y="165" fill="#c9d6e3">(dog,1)</text>
+      <rect x="120" y="190" width="80" height="40" rx="6" fill="#1c2129" stroke="#57d99a"/><text x="132" y="215" fill="#c9d6e3">(sat,1)</text>
+      <rect x="120" y="240" width="80" height="40" rx="6" fill="#1c2129" stroke="#57d99a"/><text x="132" y="265" fill="#c9d6e3">(on,1)</text>
+      <rect x="120" y="290" width="80" height="40" rx="6" fill="#1c2129" stroke="#57d99a"/><text x="132" y="315" fill="#c9d6e3">(mat,1)</text>
+      <rect x="440" y="40" width="80" height="40" rx="6" fill="#1c2129" stroke="#57d99a"/><text x="452" y="65" fill="#c9d6e3">(and,1)</text>
+      <rect x="440" y="90" width="80" height="40" rx="6" fill="#1c2129" stroke="#57d99a"/><text x="452" y="115" fill="#c9d6e3">(cat,1)</text>
+      <rect x="440" y="140" width="80" height="40" rx="6" fill="#1c2129" stroke="#57d99a"/><text x="452" y="165" fill="#c9d6e3">(ate,1)</text>
+      <rect x="440" y="190" width="80" height="40" rx="6" fill="#1c2129" stroke="#57d99a"/><text x="452" y="215" fill="#c9d6e3">(fish,1)</text>
+    </g>
+    <!-- arrows to partitions -->
+    <path d="M200 60 C300 60 320 110 420 120" stroke="#e879f9" stroke-width="2" fill="none" marker-end="url(#arr3)"/>
+    <path d="M200 110 C280 110 330 130 420 145" stroke="#c084fc" stroke-width="2" fill="none" marker-end="url(#arr3)"/>
+    <path d="M200 160 C270 160 340 165 420 170" stroke="#e879f9" stroke-width="2" fill="none" marker-end="url(#arr3)"/>
+    <path d="M200 210 C280 210 340 200 420 195" stroke="#c084fc" stroke-width="2" fill="none" marker-end="url(#arr3)"/>
+    <path d="M200 260 C290 260 340 235 420 220" stroke="#f3b35b" stroke-width="2" fill="none" marker-end="url(#arr3)"/>
+    <path d="M200 310 C300 310 330 255 420 245" stroke="#f3b35b" stroke-width="2" fill="none" marker-end="url(#arr3)"/>
+    <path d="M520 60 C620 60 640 105 740 118" stroke="#f3b35b" stroke-width="2" fill="none" marker-end="url(#arr3)"/>
+    <path d="M520 110 C600 110 660 130 740 143" stroke="#f3b35b" stroke-width="2" fill="none" marker-end="url(#arr3)"/>
+    <path d="M520 160 C600 160 660 175 740 168" stroke="#e879f9" stroke-width="2" fill="none" marker-end="url(#arr3)"/>
+    <path d="M520 210 C610 210 650 195 740 193" stroke="#f3b35b" stroke-width="2" fill="none" marker-end="url(#arr3)"/>
+    <!-- partition files -->
+    <g font-size="13">
+      <rect x="424" y="112" width="330" height="60" rx="8" fill="rgba(232,121,249,.08)" stroke="#e879f9"/>
+      <text x="440" y="136" fill="#e879f9" font-weight="700">partition 1 · part-0001.json.gz</text>
+      <text x="440" y="156" fill="#c9d6e3">the:4 · dog:1 · ate:1</text>
+      <rect x="424" y="182" width="330" height="60" rx="8" fill="rgba(57,208,195,.08)" stroke="#c084fc"/>
+      <text x="440" y="206" fill="#c084fc" font-weight="700">partition 0 · part-0000.json.gz</text>
+      <text x="440" y="226" fill="#c9d6e3">big:1 · sat:1</text>
+      <rect x="424" y="252" width="330" height="60" rx="8" fill="rgba(243,179,91,.08)" stroke="#f3b35b"/>
+      <text x="440" y="276" fill="#f3b35b" font-weight="700">partition 2 · part-0002.json.gz</text>
+      <text x="440" y="296" fill="#c9d6e3">on:1 · mat:1 · and:1 · cat:1 · fish:1</text>
+    </g>
+    <text x="424" y="340" font-size="12" fill="#9aa4b2">with M map tasks there are M × R such files; each reduce task r fetches</text>
+    <text x="424" y="356" font-size="12" fill="#9aa4b2">partition r from <tspan fill="#57d99a">every</tspan> map worker — that movement is the shuffle</text>
+    <text x="120" y="356" font-size="12" fill="#9aa4b2">hash(word) mod 3 decides the color</text>
+  </svg>

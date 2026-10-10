@@ -3,7 +3,13 @@
 
 // Command mr-worker starts one CuteyMR worker which connects to a master,
 // reports its resources (CPU cores / RAM) and then runs map and reduce tasks
-// on one goroutine per CPU core until the job is finished.
+// on one goroutine per CPU core.
+//
+// Workers are daemons: like the master, a worker stays online until it is
+// interrupted (Ctrl+C / SIGTERM). Job completion, job failure and even the
+// master going away only switch it to an idle/retry state — it keeps
+// heartbeating (re-registering automatically when a master returns) so it
+// joins the next job instantly.
 package main
 
 import (

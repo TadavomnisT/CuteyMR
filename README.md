@@ -19,6 +19,7 @@ plain HTTP+JSON — with **zero external dependencies** (Go standard library onl
 - **All-core parallelism** — every worker runs one goroutine per CPU core (map or reduce tasks).
 - **Real shuffle** — intermediate partition files move peer-to-peer between workers; the master never relays bulk data.
 - **Fault tolerant** — heartbeat timeouts, active data-plane probes, task re-queuing and MAP-phase rollback.
+- **Workers are daemons** — like the master, workers stay online until you press `Ctrl+C`; they survive job completion, job failure and even master restarts (re-registering automatically to join the next job).
 - **Live terminal dashboards** for master and every worker, including an animated cluster topology with moody worker faces `(>_<)`.
 - **Verified** — results are compared word-for-word against a sequential reference implementation (and it passes, including `kill -9` chaos tests).
 
@@ -46,7 +47,8 @@ bin/mr-worker --master http://127.0.0.1:8080 --file-port 9103
 ```
 
 Watch the dashboards. When the job completes the master parks on the results
-screen; the final word counts are stored in `data/output/`:
+screen and the workers idle online (stop them with `Ctrl+C` whenever you
+like); the final word counts are stored in `data/output/`:
 
 | file | contents |
 |---|---|
@@ -69,7 +71,8 @@ GOOS=linux GOARCH=amd64 go build -o dist/linux-amd64/ ./cmd/...
 ```
 
 Open TCP 8080 on the master and the workers' `--file-port` in your firewalls —
-the shuffle is peer-to-peer. See `docs/MAPREDUCE-GUIDE.html` §10 for the full walkthrough.
+the shuffle is peer-to-peer. See `docs/MAPREDUCE-GUIDE.md` §10 (or the
+illustrated `docs/MAPREDUCE-GUIDE.html`) for the full walkthrough.
 
 ## Testing
 
@@ -128,7 +131,9 @@ internal/termui/                    dependency-free ANSI terminal canvas
 internal/master/                    scheduler, HTTP control plane, merge, dashboard
 internal/worker/                    slot goroutines, map/reduce tasks, file server, dashboard
 scripts/                            demo + fault-tolerance + verify scripts
-docs/MAPREDUCE-GUIDE.html           the fully illustrated guide (start here!)
+docs/MAPREDUCE-GUIDE.md             the full guide in Markdown (GitHub renders it natively)
+docs/MAPREDUCE-GUIDE.html           the same guide, fully illustrated (inline SVG + art)
+docs/images/                        hero art, parable illustration, figure SVGs
 ```
 
 The guide explains MapReduce from zero (with a library run by femboys),
